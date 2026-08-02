@@ -43,6 +43,12 @@ export async function GET() {
     listenerPort: port ?? null,
     listenerPath: path ?? null,
     listenerResult,
+    handler: process.env._HANDLER ?? null,
+    lambdaFunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME ?? null,
+    deploymentId: process.env.AWS_AMPLIFY_DEPLOYMENT_ID ?? null,
+    execWrapper: process.env.AWS_LAMBDA_EXEC_WRAPPER ?? null,
+    lambdaTaskRoot: process.env.LAMBDA_TASK_ROOT ?? null,
+    pwd: process.env.PWD ?? null,
     sampleKeys: keys.filter((k) => !k.startsWith("npm_")).slice(0, 40),
   });
 }
