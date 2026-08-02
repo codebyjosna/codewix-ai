@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
   outputFileTracingExcludes: {
     "*": [
       "**/node_modules/.pnpm/@braintrust+bt-darwin-*/**",
