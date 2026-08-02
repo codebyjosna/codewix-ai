@@ -268,5 +268,6 @@ export async function POST(req: Request) {
   return new Response(stream.toReadableStream());
 }
 
-export const runtime = "edge";
+// This route reads/writes via Prisma, which needs Node's TCP driver and
+// can't run on the Edge runtime (was crashing every completion request).
 export const maxDuration = 300;

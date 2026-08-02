@@ -86,16 +86,53 @@ model OtpCode {
 }
 
 model Project {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  files     Json     @default("{}")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id            String            @id
+  userId        String            @map("user_id") @db.Uuid
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  description   String
+  projectTypeId String            @map("project_type_id") @db.Uuid
+  projectType   ProjectType       @relation(fields: [projectTypeId], references: [id], onDelete: Restrict)
+  visibilityId  String            @map("visibility_id") @db.Uuid
+  visibility    ProjectVisibility @relation(fields: [visibilityId], references: [id], onDelete: Restrict)
+  chatId        String?           @map("chat_id")
+  files         Json              @default("{}")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([userId])
+  @@index([projectTypeId])
+  @@index([visibilityId])
   @@map("projects")
+  @@schema("public")
+}
+
+// Dropdown options for the project-creation dialog. Rows are seeded/managed
+// in the database (see migration + admin tooling) - never hardcode these in
+// application code.
+model ProjectType {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique
+  slug      String    @unique
+  sortOrder Int       @default(0) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  projects  Project[]
+
+  @@map("project_types")
+  @@schema("public")
+}
+
+model ProjectVisibility {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique
+  slug      String    @unique
+  sortOrder Int       @default(0) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  projects  Project[]
+
+  @@map("project_visibilities")
   @@schema("public")
 }
 

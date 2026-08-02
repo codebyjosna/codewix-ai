@@ -121,5 +121,6 @@ const getChatById = cache(async (id: string) => {
 export type Chat = NonNullable<Awaited<ReturnType<typeof getChatById>>>;
 export type Message = Chat["messages"][number];
 
-export const runtime = "edge";
+// This page reads the chat via Prisma (getChatById), which needs Node's TCP
+// driver and can't run on the Edge runtime (was crashing every chat page).
 export const maxDuration = 45;

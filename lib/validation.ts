@@ -58,6 +58,30 @@ export const resetPasswordConfirmSchema = z.object({
   password: passwordSchema,
 });
 
+export const projectNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Project name is required")
+  .max(100, "Project name must be at most 100 characters")
+  .regex(
+    /^[a-zA-Z0-9 ]+$/,
+    "Project name can only contain letters, numbers, and spaces",
+  );
+
+export const projectDescriptionSchema = z
+  .string()
+  .trim()
+  .min(200, "Description must be at least 200 characters")
+  .max(1000, "Description must be at most 1000 characters");
+
+export const createProjectSchema = z.object({
+  name: projectNameSchema,
+  description: projectDescriptionSchema,
+  projectTypeId: z.string().uuid("Invalid project type"),
+  visibilityId: z.string().uuid("Invalid visibility option"),
+  screenshotUrl: z.string().trim().url("Invalid screenshot URL").max(2048).optional(),
+});
+
 // Returns the first validation issue's message, suitable for a single
 // user-facing error string.
 export function firstIssueMessage(error: z.ZodError): string {

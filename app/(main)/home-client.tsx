@@ -5,30 +5,14 @@ import Fieldset from "@/components/fieldset";
 import ArrowRightIcon from "@/components/icons/arrow-right";
 import LoadingButton from "@/components/loading-button";
 import Spinner from "@/components/spinner";
-import assert from "assert";
 import { useRouter } from "next/navigation";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  use,
-  useState,
-  useRef,
-  useTransition,
-  useEffect,
-  useMemo,
-  memo,
-} from "react";
+import { use, useState, useRef, useEffect, useMemo, memo } from "react";
 
 import { Context } from "./providers";
 import Header from "@/components/header";
 import { useS3Upload } from "next-s3-upload";
 import UploadIcon from "@/components/icons/upload-icon";
-import { MODELS, SUGGESTED_PROMPTS } from "@/lib/constants";
+import { SUGGESTED_PROMPTS } from "@/lib/constants";
 import { useCurrentUser, type CurrentUser } from "@/hooks/use-current-user";
 import {
   AlertDialog,
@@ -40,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import ProjectCreateDialog from "./project-create-dialog";
 
 export default function HomeClient({
   initialUser,
@@ -51,18 +36,14 @@ export default function HomeClient({
   const { user, loaded: authLoaded } = useCurrentUser(initialUser);
 
   const [prompt, setPrompt] = useState("");
-  const [model, setModel] = useState(
-    MODELS.find((m) => !m.hidden)?.value || MODELS[0].value,
-  );
   const [screenshotUrl, setScreenshotUrl] = useState<string | undefined>(
     undefined,
   );
   const [screenshotLoading, setScreenshotLoading] = useState(false);
   const [signInDialogOpen, setSignInDialogOpen] = useState(false);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -72,10 +53,28 @@ export default function HomeClient({
 
   const { uploadToS3 } = useS3Upload();
 
-  const selectedModel = useMemo(
-    () => MODELS.find((m) => m.value === model),
-    [model],
-  );
+  function handleProjectCreated(result: {
+    projectId: string;
+    chatId: string;
+    lastMessageId: string;
+    model: string;
+  }) {
+    const streamPromise = fetch("/api/get-next-completion-stream-promise", {
+      method: "POST",
+      body: JSON.stringify({
+        messageId: result.lastMessageId,
+        model: result.model,
+      }),
+    }).then((res) => {
+      if (!res.body) {
+        throw new Error("No body on response");
+      }
+      return res.body;
+    });
+
+    setStreamPromise(streamPromise);
+    router.push(`/chats/${result.chatId}`);
+  }
 
   const handleScreenshotUpload = async (event: any) => {
     if (prompt.length === 0) setPrompt("Build this");
@@ -126,7 +125,9 @@ export default function HomeClient({
 
           <form
             className="relative w-full max-w-2xl pt-6 lg:pt-12"
-            action={async (formData) => {
+            onSubmit={(event) => {
+              event.preventDefault();
+
               // Auth check hasn't resolved yet; the submit button is
               // disabled in this state, but guard here too just in case.
               if (!authLoaded) return;
@@ -136,59 +137,13 @@ export default function HomeClient({
                 return;
               }
 
-              startTransition(async () => {
-                const { prompt, model } = Object.fromEntries(formData);
+              if (prompt.trim().length === 0) return;
 
-                assert.ok(typeof prompt === "string");
-                assert.ok(typeof model === "string");
-
-                const response = await fetch("/api/create-chat", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    prompt,
-                    model,
-                    screenshotUrl,
-                  }),
-                });
-
-                if (response.status === 401) {
-                  setSignInDialogOpen(true);
-                  return;
-                }
-
-                if (!response.ok) {
-                  throw new Error("Failed to create chat");
-                }
-
-                const { chatId, lastMessageId } = await response.json();
-
-                const streamPromise = fetch(
-                  "/api/get-next-completion-stream-promise",
-                  {
-                    method: "POST",
-                    body: JSON.stringify({ messageId: lastMessageId, model }),
-                  },
-                ).then((res) => {
-                  if (!res.body) {
-                    throw new Error("No body on response");
-                  }
-                  return res.body;
-                });
-
-                startTransition(() => {
-                  setStreamPromise(streamPromise);
-                  router.push(`/chats/${chatId}`);
-                });
-              });
+              setProjectDialogOpen(true);
             }}
           >
             <Fieldset>
-              <div
-                className={`relative flex w-full max-w-2xl rounded-xl border border-white/40 bg-white/90 pb-10 shadow-2xl shadow-black/20 backdrop-blur-xl transition-[height] ${isPending ? "h-28 overflow-hidden" : ""}`}
-              >
+              <div className="relative flex w-full max-w-2xl rounded-xl border border-white/40 bg-white/90 pb-10 shadow-2xl shadow-black/20 backdrop-blur-xl">
                 <div className="w-full">
                   {screenshotLoading && (
                     <div className="relative mx-3 mt-3">
@@ -200,9 +155,7 @@ export default function HomeClient({
                     </div>
                   )}
                   {screenshotUrl && (
-                    <div
-                      className={`${isPending ? "invisible" : ""} relative mx-3 mt-3`}
-                    >
+                    <div className="relative mx-3 mt-3">
                       <div className="rounded-xl">
                         <img
                           alt="screenshot"
@@ -299,35 +252,6 @@ export default function HomeClient({
                 </div>
                 <div className="absolute bottom-2 left-3 right-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Select
-                      name="model"
-                      value={model}
-                      onValueChange={(value) => {
-                        if (value !== null) setModel(value);
-                      }}
-                    >
-                      <SelectTrigger className="h-7 w-fit border-0 px-1 py-1 text-sm text-gray-400 shadow-none ring-0 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-300">
-                        <SelectValue>{selectedModel?.label}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="space-y-1 bg-white p-2">
-                        {MODELS.filter((m) => !m.hidden).map((m) => (
-                          <SelectItem
-                            key={m.value}
-                            value={m.value}
-                            className="gap-2 text-gray-500"
-                          >
-                            <span>{m.label}</span>
-                            {m.note && (
-                              <span className="text-xs text-gray-400">
-                                {m.note}
-                              </span>
-                            )}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <div className="h-4 w-px bg-gray-200 max-sm:hidden" />
                     <div>
                       <label
                         htmlFor="screenshot"
@@ -368,13 +292,6 @@ export default function HomeClient({
                     )}
                   </div>
                 </div>
-
-                {isPending && (
-                  <LoadingMessage
-                    isHighQuality={false}
-                    screenshotUrl={screenshotUrl}
-                  />
-                )}
               </div>
               <div className="mt-4 flex w-full flex-wrap justify-between gap-2.5">
                 {SUGGESTED_PROMPTS.map((v) => (
@@ -426,6 +343,15 @@ export default function HomeClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ProjectCreateDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        initialDescription={prompt}
+        screenshotUrl={screenshotUrl}
+        onSignInRequired={() => setSignInDialogOpen(true)}
+        onCreated={handleProjectCreated}
+      />
     </div>
   );
 }
@@ -437,27 +363,3 @@ const Footer = memo(() => {
     </footer>
   );
 });
-
-function LoadingMessage({
-  isHighQuality,
-  screenshotUrl,
-}: {
-  isHighQuality: boolean;
-  screenshotUrl: string | undefined;
-}) {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white px-1 py-3 md:px-3">
-      <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
-        <span className="animate-pulse text-balance text-center text-sm md:text-base">
-          {isHighQuality
-            ? `Coming up with project plan, may take 15 seconds...`
-            : screenshotUrl
-              ? "Analyzing your screenshot..."
-              : `Creating your app...`}
-        </span>
-
-        <Spinner />
-      </div>
-    </div>
-  );
-}
