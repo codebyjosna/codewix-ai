@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Together from "together-ai";
+import { getNvidiaClient } from "@/lib/nvidia";
 import { getPrisma } from "@/lib/prisma";
 import {
   cleanGeneratedChatTitle,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/braintrust";
 import type { Span } from "braintrust";
 
-const TITLE_MODEL = "Qwen/Qwen3.5-9B";
+const TITLE_MODEL = "meta/llama-3.2-3b-instruct";
 
 export async function POST(request: NextRequest) {
   const logger = getBraintrustLogger();
@@ -99,12 +99,11 @@ export async function POST(request: NextRequest) {
       }
 
       const startedAt = performance.now();
-      const together = new Together();
-      const response = await together.chat.completions.create({
+      const nvidia = getNvidiaClient();
+      const response = await nvidia.chat.completions.create({
         model: TITLE_MODEL,
         temperature: 0.2,
         max_tokens: 24,
-        chat_template_kwargs: { enable_thinking: false },
         messages: [
           {
             role: "system",
@@ -133,7 +132,7 @@ export async function POST(request: NextRequest) {
         output: generatedTitle,
         metadata: {
           model: TITLE_MODEL,
-          provider: "together",
+          provider: "nvidia",
         },
         metrics: {
           duration_ms: performance.now() - startedAt,
@@ -160,7 +159,7 @@ export async function POST(request: NextRequest) {
           route: "/api/generate-chat-title",
           chatId: chat.id,
           model: TITLE_MODEL,
-          provider: "together",
+          provider: "nvidia",
         },
       },
     });

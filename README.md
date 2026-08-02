@@ -20,7 +20,7 @@
 
 1. Clone the repo: `git clone https://github.com/Nutlope/llamacoder`
 2. Create a `.env` file and add your API keys:
-   - **[Together AI API key](https://dub.sh/together-ai/?utm_source=example-app\&utm_medium=llamacoder\&utm_campaign=llamacoder-app-signup)**: `TOGETHER_API_KEY=<your_together_ai_api_key>`
+   - **[NVIDIA NIM API key](https://build.nvidia.com/)**: `NVIDIA_API_KEY=<your_nvidia_api_key>`
    - **Database URL**: Use [Supabase](https://supabase.com) to set up your PostgreSQL database and add the Prisma connection string: `DATABASE_URL=<your_database_url>`
    - **Braintrust API key** (optional, for observability): `BRAINTRUST_API_KEY=<your_braintrust_api_key>`
 3. Run `npm install` and `npm run dev` to install dependencies and run locally

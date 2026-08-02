@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import Together from "together-ai";
+import { getNvidiaClient } from "../../lib/nvidia";
 
 export type JudgeResult = {
   model: string;
@@ -29,7 +29,7 @@ export async function judgeScreenshot(options: {
   request?: JudgeRequest;
 }): Promise<JudgeResult> {
   const screenshot = await fs.readFile(options.screenshotPath, "base64");
-  const request = options.request ?? createTogetherJudgeRequest();
+  const request = options.request ?? createNvidiaJudgeRequest();
   const maxAttempts = options.maxAttempts ?? 3;
   let lastError: unknown;
 
@@ -131,14 +131,13 @@ function parseJsonObject(content: string): any {
   }
 }
 
-function createTogetherJudgeRequest(): JudgeRequest {
-  const together = new Together();
+function createNvidiaJudgeRequest(): JudgeRequest {
+  const nvidia = getNvidiaClient();
 
   return {
     create: async (options) => {
-      const response = await together.chat.completions.create({
+      const response = await nvidia.chat.completions.create({
         model: options.model,
-        reasoning: { enabled: false },
         temperature: 0,
         max_tokens: 1200,
         messages: [

@@ -26,7 +26,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ChatCompletionStream } from "together-ai/lib/ChatCompletionStream.mjs";
+import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
 import ChatBox from "./chat-box";
 import ChatLog from "./chat-log";
 import CodeViewer from "./code-viewer";

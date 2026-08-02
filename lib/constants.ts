@@ -1,18 +1,36 @@
-// Legacy model IDs → current serverless replacements. resolveModel() maps these
-// so existing chats/DB rows that reference an old ID keep working.
+// Legacy Together AI model IDs → current NVIDIA NIM replacements (verified
+// against https://docs.api.nvidia.com/nim/reference/llm-apis). resolveModel()
+// maps these so existing chats/DB rows that reference an old Together ID
+// keep working after the Together AI → NVIDIA NIM migration.
 export const MODEL_ALIASES: Record<string, string> = {
-  "zai-org/GLM-4.6": "zai-org/GLM-5.2",
-  "zai-org/GLM-5": "zai-org/GLM-5.2",
-  "zai-org/GLM-5.1": "zai-org/GLM-5.2",
-  "Qwen/Qwen2.5-Coder-32B-Instruct": "zai-org/GLM-5.2",
-  "MiniMaxAI/MiniMax-M2.5": "MiniMaxAI/MiniMax-M3",
-  "MiniMaxAI/MiniMax-M2.7": "MiniMaxAI/MiniMax-M3",
-  "moonshotai/Kimi-K2.5": "moonshotai/Kimi-K2.7-Code",
-  "moonshotai/Kimi-K2-Instruct-0905": "moonshotai/Kimi-K2.7-Code",
-  "deepseek-ai/DeepSeek-V3.1": "moonshotai/Kimi-K2.7-Code",
-  "Qwen/Qwen3-Coder-Next-FP8": "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
-  "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8": "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
-  "Qwen/Qwen3-235B-A22B-Instruct-2507-tput": "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
+  // Historical Together aliases (pre-migration), flattened to their NIM target.
+  "zai-org/GLM-4.6": "z-ai/glm-5.2",
+  "zai-org/GLM-5": "z-ai/glm-5.2",
+  "zai-org/GLM-5.1": "z-ai/glm-5.2",
+  "Qwen/Qwen2.5-Coder-32B-Instruct": "z-ai/glm-5.2",
+  "MiniMaxAI/MiniMax-M2.5": "minimaxai/minimax-m2.7",
+  "MiniMaxAI/MiniMax-M2.7": "minimaxai/minimax-m2.7",
+  "moonshotai/Kimi-K2.5": "moonshotai/kimi-k2-instruct",
+  "moonshotai/Kimi-K2-Instruct-0905": "moonshotai/kimi-k2-instruct",
+  "deepseek-ai/DeepSeek-V3.1": "moonshotai/kimi-k2-instruct",
+  "Qwen/Qwen3-Coder-Next-FP8": "qwen/qwen3-coder-480b-a35b-instruct",
+  "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8":
+    "qwen/qwen3-coder-480b-a35b-instruct",
+
+  // Together model IDs that used to be the MODELS list's "current" values,
+  // now redirected to their NVIDIA NIM equivalent (MODELS below already uses
+  // the NIM id directly for new chats; these keep old DB rows working).
+  "zai-org/GLM-5.2": "z-ai/glm-5.2",
+  "moonshotai/Kimi-K2.7-Code": "moonshotai/kimi-k2-instruct",
+  "moonshotai/Kimi-K2.6": "moonshotai/kimi-k2-thinking",
+  "Qwen/Qwen3.7-Max": "qwen/qwen3-coder-480b-a35b-instruct",
+  "MiniMaxAI/MiniMax-M3": "minimaxai/minimax-m2.7",
+  "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8":
+    "qwen/qwen3-coder-480b-a35b-instruct",
+  "deepseek-ai/DeepSeek-V3": "deepseek-ai/deepseek-v4-pro",
+  "Qwen/Qwen3-235B-A22B-Instruct-2507-tput":
+    "qwen/qwen3-coder-480b-a35b-instruct",
+  "meta-llama/Llama-3.3-70B-Instruct-Turbo": "meta/llama-3.3-70b-instruct",
 };
 
 export function resolveModel(model: string): string {
@@ -21,8 +39,8 @@ export function resolveModel(model: string): string {
 
 // Model used for the high-quality "software architect" plan step in
 // create-chat. Must support non-streaming completions (create-chat calls it
-// with stream=false). Qwen3-Coder-* are now non-serverless on Together.
-export const PLANNING_MODEL = "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8";
+// with stream=false).
+export const PLANNING_MODEL = "qwen/qwen3-coder-480b-a35b-instruct";
 
 export type ModelOption = {
   label: string;
@@ -32,56 +50,45 @@ export type ModelOption = {
   note?: string;
 };
 
-// Selectable (non-hidden) models are the fast, reliable set plus Nemotron 3
-// Ultra (fast on serverless). Qwen3.7 Max, MiniMax M3 and the old Qwen 3 235B
-// were dropped from the picker for slow/inconsistent serverless throughput,
-// but stay here as hidden entries so existing chats and MODEL_ALIASES keep
-// resolving them.
+// Selectable (non-hidden) models are the fast, reliable NVIDIA NIM set plus
+// Nemotron 3 Ultra. The hidden entries are kept so existing chats and
+// MODEL_ALIASES keep resolving them; all model ids below are verified NVIDIA
+// NIM model ids (https://docs.api.nvidia.com/nim/reference/llm-apis).
 export const MODELS: ModelOption[] = [
   {
     label: "GLM 5.2",
-    value: "zai-org/GLM-5.2",
+    value: "z-ai/glm-5.2",
   },
   {
-    label: "Kimi K2.7 Code",
-    value: "moonshotai/Kimi-K2.7-Code",
+    label: "Kimi K2 Instruct",
+    value: "moonshotai/kimi-k2-instruct",
   },
   {
-    label: "Kimi K2.6",
-    value: "moonshotai/Kimi-K2.6",
+    label: "Kimi K2 Thinking",
+    value: "moonshotai/kimi-k2-thinking",
   },
   {
     label: "Nemotron 3 Ultra",
     value: "nvidia/nemotron-3-ultra-550b-a55b",
   },
   {
-    label: "Qwen3.7 Max",
-    value: "Qwen/Qwen3.7-Max",
+    label: "Qwen3 Coder 480B",
+    value: "qwen/qwen3-coder-480b-a35b-instruct",
     hidden: true,
   },
   {
-    label: "MiniMax M3",
-    value: "MiniMaxAI/MiniMax-M3",
+    label: "MiniMax M2.7",
+    value: "minimaxai/minimax-m2.7",
     hidden: true,
   },
   {
-    label: "Qwen 3 235B",
-    value: "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
-    hidden: true,
-  },
-  {
-    label: "DeepSeek V3",
-    value: "deepseek-ai/DeepSeek-V3",
-    hidden: true,
-  },
-  {
-    label: "Qwen 3 235B",
-    value: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+    label: "DeepSeek V4 Pro",
+    value: "deepseek-ai/deepseek-v4-pro",
     hidden: true,
   },
   {
     label: "Llama 3.3 70B",
-    value: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    value: "meta/llama-3.3-70b-instruct",
     hidden: true,
   },
 ];
