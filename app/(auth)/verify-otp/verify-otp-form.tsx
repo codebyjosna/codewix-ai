@@ -98,6 +98,7 @@ export default function VerifyOtpForm() {
         );
       } else {
         router.push(data.redirect);
+        router.refresh();
       }
     } finally {
       setPending(false);

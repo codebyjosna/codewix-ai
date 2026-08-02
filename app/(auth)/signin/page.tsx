@@ -42,6 +42,7 @@ export default function SignInPage() {
 
       toast({ description: "Signed in successfully." });
       router.push(data.redirect);
+      router.refresh();
     } finally {
       setPending(false);
     }
