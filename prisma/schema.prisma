@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["codewix_ai"]
 }
 
 model GeneratedApp {
@@ -15,6 +17,7 @@ model GeneratedApp {
   createdAt DateTime @default(now())
 
   @@index([id])
+  @@schema("codewix_ai")
 }
 
 model Chat {
@@ -30,6 +33,7 @@ model Chat {
   createdAt         DateTime  @default(now())
 
   @@index([createdAt])
+  @@schema("codewix_ai")
 }
 
 model Message {
@@ -44,4 +48,5 @@ model Message {
 
   @@index([chatId])
   @@index([chatId, createdAt])
+  @@schema("codewix_ai")
 }
