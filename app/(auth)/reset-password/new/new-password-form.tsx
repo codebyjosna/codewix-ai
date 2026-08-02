@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, FormEvent } from "react";
-import { toast } from "@/hooks/use-toast";
+import { StatusDialog, useStatusDialog } from "@/components/ui/status-dialog";
 
 export default function NewPasswordForm() {
   const router = useRouter();
@@ -12,16 +12,14 @@ export default function NewPasswordForm() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const { state, showSuccess, showError, close } = useStatusDialog();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      toast({ description: "Passwords do not match", variant: "destructive" });
+      showError("Passwords do not match");
       return;
     }
 
@@ -35,14 +33,13 @@ export default function NewPasswordForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        const message = data.error || "Something went wrong";
-        setError(message);
-        toast({ description: message, variant: "destructive" });
+        showError(data.error || "Something went wrong");
         return;
       }
 
-      toast({ description: "Password updated. Please sign in." });
-      router.push("/signin");
+      showSuccess("Password updated. Please sign in.", () => {
+        router.push("/signin");
+      });
     } finally {
       setPending(false);
     }
@@ -102,8 +99,6 @@ export default function NewPasswordForm() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
           <button
             type="submit"
             className="mt-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
@@ -112,6 +107,8 @@ export default function NewPasswordForm() {
           </button>
         </fieldset>
       </form>
+
+      <StatusDialog state={state} onClose={close} />
     </div>
   );
 }

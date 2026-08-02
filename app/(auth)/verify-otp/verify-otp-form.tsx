@@ -11,7 +11,7 @@ import {
   ClipboardEvent,
 } from "react";
 import ArrowLeftIcon from "@/components/icons/arrow-left";
-import { toast } from "@/hooks/use-toast";
+import { StatusDialog, useStatusDialog } from "@/components/ui/status-dialog";
 
 const RESEND_SECONDS = 60;
 
@@ -22,11 +22,11 @@ export default function VerifyOtpForm() {
   const purpose = searchParams.get("purpose") === "reset" ? "reset" : "signup";
 
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [resending, setResending] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const { state, showSuccess, showError, close } = useStatusDialog();
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -68,10 +68,9 @@ export default function VerifyOtpForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
     const code = digits.join("");
     if (code.length !== 6) {
-      setError("Enter the 6-digit code");
+      showError("Enter the 6-digit code");
       return;
     }
 
@@ -85,28 +84,26 @@ export default function VerifyOtpForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        const message = data.error || "Something went wrong";
-        setError(message);
-        toast({ description: message, variant: "destructive" });
+        showError(data.error || "Something went wrong");
         return;
       }
 
-      toast({ description: "Email verified successfully." });
-      if (purpose === "reset") {
-        router.push(
-          `/reset-password/new?token=${encodeURIComponent(data.resetToken)}`,
-        );
-      } else {
-        router.push(data.redirect);
-        router.refresh();
-      }
+      showSuccess("Email verified successfully.", () => {
+        if (purpose === "reset") {
+          router.push(
+            `/reset-password/new?token=${encodeURIComponent(data.resetToken)}`,
+          );
+        } else {
+          router.push(data.redirect);
+          router.refresh();
+        }
+      });
     } finally {
       setPending(false);
     }
   }
 
   async function handleResend() {
-    setError(null);
     setResending(true);
     try {
       const res = await fetch("/api/auth/resend-otp", {
@@ -118,13 +115,11 @@ export default function VerifyOtpForm() {
 
       if (!res.ok) {
         setSecondsLeft(data.retryAfter || RESEND_SECONDS);
-        const message = data.error || "Something went wrong";
-        setError(message);
-        toast({ description: message, variant: "destructive" });
+        showError(data.error || "Something went wrong");
         return;
       }
 
-      toast({ description: "A new code has been sent." });
+      showSuccess("A new code has been sent.");
       setDigits(Array(6).fill(""));
       setSecondsLeft(RESEND_SECONDS);
       inputRefs.current[0]?.focus();
@@ -170,8 +165,6 @@ export default function VerifyOtpForm() {
             ))}
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
           <button
             type="submit"
             className="mt-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
@@ -196,6 +189,8 @@ export default function VerifyOtpForm() {
           </button>
         )}
       </p>
+
+      <StatusDialog state={state} onClose={close} />
     </div>
   );
 }

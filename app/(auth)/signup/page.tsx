@@ -4,19 +4,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, FormEvent } from "react";
 import ArrowLeftIcon from "@/components/icons/arrow-left";
-import { toast } from "@/hooks/use-toast";
+import { StatusDialog, useStatusDialog } from "@/components/ui/status-dialog";
 
 export default function SignUpPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const { state, showSuccess, showError, close } = useStatusDialog();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
     setPending(true);
 
     try {
@@ -28,16 +27,15 @@ export default function SignUpPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        const message = data.error || "Something went wrong";
-        setError(message);
-        toast({ description: message, variant: "destructive" });
+        showError(data.error || "Something went wrong");
         return;
       }
 
-      toast({ description: "Account created. Check your email for a code." });
-      router.push(
-        `/verify-otp?email=${encodeURIComponent(data.email)}&purpose=signup`,
-      );
+      showSuccess("Account created. Check your email for a code.", () => {
+        router.push(
+          `/verify-otp?email=${encodeURIComponent(data.email)}&purpose=signup`,
+        );
+      });
     } finally {
       setPending(false);
     }
@@ -104,8 +102,6 @@ export default function SignUpPage() {
             <p className="text-xs text-gray-500">At least 8 characters.</p>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
           <button
             type="submit"
             className="mt-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
@@ -121,6 +117,8 @@ export default function SignUpPage() {
           Sign in
         </Link>
       </p>
+
+      <StatusDialog state={state} onClose={close} />
     </div>
   );
 }

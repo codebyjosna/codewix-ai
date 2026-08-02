@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, FormEvent } from "react";
 import ArrowLeftIcon from "@/components/icons/arrow-left";
-import { toast } from "@/hooks/use-toast";
+import { StatusDialog, useStatusDialog } from "@/components/ui/status-dialog";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [pending, setPending] = useState(false);
+  const { state, showSuccess, close } = useStatusDialog();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -23,10 +24,11 @@ export default function ResetPasswordPage() {
       });
       // Always proceed to the OTP screen, whether or not the email exists,
       // to avoid revealing account existence.
-      toast({ description: "If that email exists, a code has been sent." });
-      router.push(
-        `/verify-otp?email=${encodeURIComponent(email)}&purpose=reset`,
-      );
+      showSuccess("If that email exists, a code has been sent.", () => {
+        router.push(
+          `/verify-otp?email=${encodeURIComponent(email)}&purpose=reset`,
+        );
+      });
     } finally {
       setPending(false);
     }
@@ -72,6 +74,8 @@ export default function ResetPasswordPage() {
           </button>
         </fieldset>
       </form>
+
+      <StatusDialog state={state} onClose={close} />
     </div>
   );
 }

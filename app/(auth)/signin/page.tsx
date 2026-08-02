@@ -4,18 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, FormEvent } from "react";
 import ArrowLeftIcon from "@/components/icons/arrow-left";
-import { toast } from "@/hooks/use-toast";
+import { StatusDialog, useStatusDialog } from "@/components/ui/status-dialog";
 
 export default function SignInPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const { state, showSuccess, showError, close } = useStatusDialog();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
     setPending(true);
 
     try {
@@ -28,21 +27,21 @@ export default function SignInPage() {
 
       if (!res.ok) {
         if (data.needsVerification) {
-          toast({ description: "Please verify your email to continue." });
-          router.push(
-            `/verify-otp?email=${encodeURIComponent(data.email)}&purpose=signup`,
-          );
+          showSuccess("Please verify your email to continue.", () => {
+            router.push(
+              `/verify-otp?email=${encodeURIComponent(data.email)}&purpose=signup`,
+            );
+          });
           return;
         }
-        const message = data.error || "Something went wrong";
-        setError(message);
-        toast({ description: message, variant: "destructive" });
+        showError(data.error || "Something went wrong");
         return;
       }
 
-      toast({ description: "Signed in successfully." });
-      router.push(data.redirect);
-      router.refresh();
+      showSuccess("Signed in successfully.", () => {
+        router.push(data.redirect);
+        router.refresh();
+      });
     } finally {
       setPending(false);
     }
@@ -100,8 +99,6 @@ export default function SignInPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
           <button
             type="submit"
             className="mt-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
@@ -117,6 +114,8 @@ export default function SignInPage() {
           Sign up
         </Link>
       </p>
+
+      <StatusDialog state={state} onClose={close} />
     </div>
   );
 }
