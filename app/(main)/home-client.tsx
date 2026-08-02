@@ -6,10 +6,10 @@ import ArrowRightIcon from "@/components/icons/arrow-right";
 import LoadingButton from "@/components/loading-button";
 import Spinner from "@/components/spinner";
 import { useRouter } from "next/navigation";
-import { use, useState, useRef, useEffect, useMemo, memo } from "react";
+import { use, useState, useRef, useEffect, useMemo } from "react";
 
 import { Context } from "./providers";
-import Header from "@/components/header";
+import SiteHeader from "@/components/site-header";
 import { useS3Upload } from "next-s3-upload";
 import UploadIcon from "@/components/icons/upload-icon";
 import { SUGGESTED_PROMPTS } from "@/lib/constants";
@@ -25,11 +25,28 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import ProjectCreateDialog from "./project-create-dialog";
+import FeatureHighlightsBar from "@/components/home/feature-highlights-bar";
+import HowItWorks from "@/components/home/how-it-works";
+import SupportedTechnologies from "@/components/home/supported-technologies";
+import WhyCodewix from "@/components/home/why-codewix";
+import ExampleProjects from "@/components/home/example-projects";
+import PopularTemplates, {
+  type ProjectTypeOption,
+} from "@/components/home/popular-templates";
+import FaqSection from "@/components/home/faq-section";
+import TestimonialsSection from "@/components/home/testimonials-section";
+import PlatformStats from "@/components/home/platform-stats";
+import CtaBanner from "@/components/home/cta-banner";
+import SiteFooter from "@/components/home/site-footer";
 
 export default function HomeClient({
   initialUser,
+  stats,
+  projectTypes,
 }: {
   initialUser: CurrentUser | null;
+  stats: { appCount: number; userCount: number };
+  projectTypes: ProjectTypeOption[];
 }) {
   const { setStreamPromise } = use(Context);
   const router = useRouter();
@@ -94,8 +111,20 @@ export default function HomeClient({
     [prompt],
   );
 
+  function focusHeroPrompt(description?: string) {
+    if (description !== undefined) setPrompt(description);
+    document.getElementById("hero")?.scrollIntoView({ behavior: "smooth" });
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 400);
+  }
+
   return (
-    <div className="relative flex grow flex-col overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#1e3a8a] to-[#4c1d95]">
+    <>
+      <div
+        id="hero"
+        className="relative flex grow flex-col overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#1e3a8a] to-[#4c1d95]"
+      >
       <div className="animate-gradient-shift pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-600 via-fuchsia-600 to-cyan-500 opacity-70" />
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -114,7 +143,7 @@ export default function HomeClient({
       />
 
       <div className="isolate flex h-full grow flex-col">
-        <Header variant="dark" initialUser={initialUser} />
+        <SiteHeader initialUser={initialUser} />
 
         <div className="mt-10 flex grow flex-col items-center px-4 lg:mt-16">
           <h1 className="mt-4 text-balance text-center text-4xl leading-none text-white drop-shadow-sm md:text-[64px] lg:mt-8">
@@ -321,8 +350,7 @@ export default function HomeClient({
             </Fieldset>
           </form>
         </div>
-
-        <Footer />
+      </div>
       </div>
 
       <AlertDialog open={signInDialogOpen} onOpenChange={setSignInDialogOpen}>
@@ -352,14 +380,23 @@ export default function HomeClient({
         onSignInRequired={() => setSignInDialogOpen(true)}
         onCreated={handleProjectCreated}
       />
-    </div>
+
+      <FeatureHighlightsBar />
+      <HowItWorks />
+      <SupportedTechnologies />
+      <WhyCodewix />
+      <ExampleProjects onSelectExample={(description) => focusHeroPrompt(description)} />
+      <PopularTemplates
+        templates={projectTypes}
+        onSelectTemplate={(template) =>
+          focusHeroPrompt(`Build a ${template.name.toLowerCase()}: `)
+        }
+      />
+      <FaqSection />
+      <TestimonialsSection />
+      <PlatformStats appCount={stats.appCount} userCount={stats.userCount} />
+      <CtaBanner />
+      <SiteFooter />
+    </>
   );
 }
-
-const Footer = memo(() => {
-  return (
-    <footer className="flex w-full flex-col items-center justify-center space-y-1 px-5 pb-4 pt-5 text-center text-sm text-white/70">
-      <div>&copy; {new Date().getFullYear()} Codewix. All rights reserved.</div>
-    </footer>
-  );
-});

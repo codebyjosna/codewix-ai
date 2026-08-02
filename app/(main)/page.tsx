@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import HomeClient from "./home-client";
 import { getCurrentUser } from "@/lib/auth";
+import { getPrisma } from "@/lib/prisma";
 
 export default async function Home() {
   const user = await getCurrentUser();
@@ -10,7 +11,24 @@ export default async function Home() {
     redirect(`/${user.id}`);
   }
 
-  return <HomeClient initialUser={null} />;
+  const prisma = getPrisma();
+  const [appCount, userCount, projectTypes] = await Promise.all([
+    prisma.chat.count(),
+    prisma.user.count(),
+    prisma.projectType.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, slug: true },
+    }),
+  ]);
+
+  return (
+    <HomeClient
+      initialUser={null}
+      stats={{ appCount, userCount }}
+      projectTypes={projectTypes}
+    />
+  );
 }
 
 // Note: this page now reads the session via Prisma (getCurrentUser), which
