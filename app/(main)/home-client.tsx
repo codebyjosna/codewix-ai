@@ -123,7 +123,7 @@ export default function HomeClient({
     <>
       <div
         id="hero"
-        className="relative flex grow flex-col overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#1e3a8a] to-[#4c1d95]"
+        className="relative flex min-h-screen shrink-0 grow flex-col overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#1e3a8a] to-[#4c1d95]"
       >
       <div className="animate-gradient-shift pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-600 via-fuchsia-600 to-cyan-500 opacity-70" />
 
