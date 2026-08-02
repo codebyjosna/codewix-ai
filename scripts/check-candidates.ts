@@ -1,20 +1,20 @@
 // Tests the NEW models we want to adopt, to confirm they actually work on
-// Together's SERVERLESS inference API and (for the screenshot→code use case)
-// accept image input. Each candidate is paired with the old model it would
-// replace. Run:
+// NVIDIA NIM's inference API and (for the screenshot→code use case) accept
+// image input. Each candidate is paired with the old model it would replace.
+// Run:
 //
 //   node --env-file=.env scripts/check-candidates.ts
 
 export {};
 
-const COMPLETIONS_URL = "https://api.together.xyz/v1/chat/completions";
+const COMPLETIONS_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 const PER_REQUEST_TIMEOUT_MS = 45_000;
 const CONCURRENCY = 4;
 
-const API_KEY = process.env.TOGETHER_API_KEY;
+const API_KEY = process.env.NVIDIA_API_KEY;
 if (!API_KEY) {
   console.error(
-    "✗ TOGETHER_API_KEY not found. Run with: node --env-file=.env scripts/check-candidates.ts",
+    "✗ NVIDIA_API_KEY not found. Run with: node --env-file=.env scripts/check-candidates.ts",
   );
   process.exit(2);
 }
@@ -34,26 +34,26 @@ interface Candidate {
 const CANDIDATES: Candidate[] = [
   {
     label: "GLM 5.2",
-    value: "zai-org/GLM-5.2",
-    replaces: "zai-org/GLM-5 / zai-org/GLM-5.1",
+    value: "z-ai/glm-5.2",
+    replaces: "z-ai/glm5.1 (text-only)",
     needsVision: false,
   },
   {
-    label: "MiniMax M3",
-    value: "MiniMaxAI/MiniMax-M3",
-    replaces: "MiniMaxAI/MiniMax-M2.7",
+    label: "MiniMax M2.7",
+    value: "minimaxai/minimax-m2.7",
+    replaces: "minimaxai/minimax-m2.5 (text-only)",
     needsVision: false,
   },
   {
-    label: "Kimi K2.6",
-    value: "moonshotai/Kimi-K2.6",
-    replaces: "moonshotai/Kimi-K2.5 (screenshot→code)",
-    needsVision: true,
+    label: "Kimi K2 Thinking",
+    value: "moonshotai/kimi-k2-thinking",
+    replaces: "moonshotai/kimi-k2-instruct (text-only)",
+    needsVision: false,
   },
   {
-    label: "Kimi K2.7-Code",
-    value: "moonshotai/Kimi-K2.7-Code",
-    replaces: "moonshotai/Kimi-K2.5 (code path)",
+    label: "Llama 3.2 11B Vision",
+    value: "meta/llama-3.2-11b-vision-instruct",
+    replaces: "screenshot→code description model",
     needsVision: true,
   },
 ];

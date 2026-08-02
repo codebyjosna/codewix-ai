@@ -4,13 +4,13 @@
 </a>
 
 <p align="center">
-  An open source Claude Artifacts – generate small apps with one prompt. Powered by Llama 3 on Together.ai.
+  An open source Claude Artifacts – generate small apps with one prompt. Powered by NVIDIA NIM.
 </p>
 
 ## Tech stack
 
 - [Llama 3.1 405B](https://ai.meta.com/blog/meta-llama-3-1/) from Meta for the LLM
-- [Together AI](https://togetherai.link/?utm_source=llamacoder&utm_medium=referral&utm_campaign=example-app) for LLM inference
+- [NVIDIA NIM](https://build.nvidia.com/) for LLM inference
 - [esbuild-wasm](https://github.com/evanw/esbuild) + [esm.sh](https://esm.sh) for the in-browser preview renderer (runs in a sandboxed iframe)
 - Next.js app router with Tailwind
 - [Braintrust](https://www.braintrust.dev/) for observability

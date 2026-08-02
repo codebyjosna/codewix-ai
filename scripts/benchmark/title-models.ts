@@ -1,24 +1,70 @@
-// Benchmark Together chat models for the background "short chat title" job.
+// Benchmark NVIDIA NIM chat models for the background "short chat title" job.
 //
-// Pulls the live /v1/models catalog so newly-added serverless models are included,
-// then probes chat/completions with a deliberately long app prompt. Results are
-// written as JSON + Markdown, sorted by latency among successful title outputs.
+// Probes chat/completions for each model in a static, verified NIM model list
+// (see https://docs.api.nvidia.com/nim/reference/llm-apis) with a deliberately
+// long app prompt. Results are written as JSON + Markdown, sorted by latency
+// among successful title outputs.
 //
 // Run:
 //   node --env-file=.env scripts/benchmark/title-models.ts --limit 40 --reps 2
 //   node --env-file=.env scripts/benchmark/title-models.ts --all --reps 3
 
-const API_BASE = "https://api.together.xyz/v1";
-const MODELS_URL = `${API_BASE}/models`;
+const API_BASE = "https://integrate.api.nvidia.com/v1";
 const COMPLETIONS_URL = `${API_BASE}/chat/completions`;
 
-const API_KEY = process.env.TOGETHER_API_KEY;
+const API_KEY = process.env.NVIDIA_API_KEY;
 if (!API_KEY) {
   console.error(
-    "Missing TOGETHER_API_KEY. Run with: node --env-file=.env scripts/benchmark/title-models.ts",
+    "Missing NVIDIA_API_KEY. Run with: node --env-file=.env scripts/benchmark/title-models.ts",
   );
   process.exit(2);
 }
+
+// Verified NVIDIA NIM chat-completion model ids (not an exhaustive catalog
+// dump like Together's - NIM has no equivalent enriched /v1/models discovery
+// endpoint with pricing/context-length, so this list is curated by hand).
+const NIM_CHAT_MODELS = [
+  "deepseek-ai/deepseek-v4-flash",
+  "deepseek-ai/deepseek-v4-pro",
+  "google/codegemma-7b",
+  "google/gemma-7b",
+  "meta/llama-3.1-8b-instruct",
+  "meta/llama-3.1-70b-instruct",
+  "meta/llama-3.2-1b-instruct",
+  "meta/llama-3.2-3b-instruct",
+  "meta/llama-3.3-70b-instruct",
+  "microsoft/phi-4-mini-instruct",
+  "microsoft/phi-4-mini-flash-reasoning",
+  "minimaxai/minimax-m2.5",
+  "minimaxai/minimax-m2.7",
+  "mistralai/mistral-nemotron",
+  "mistralai/mixtral-8x7b-instruct",
+  "mistralai/mixtral-8x22b-instruct",
+  "moonshotai/kimi-k2-instruct",
+  "moonshotai/kimi-k2-thinking",
+  "nvidia/llama-3.1-nemotron-nano-8b-v1",
+  "nvidia/nvidia-nemotron-nano-9b-v2",
+  "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+  "nvidia/nemotron-mini-4b-instruct",
+  "nvidia/nemotron-3-nano-30b-a3b",
+  "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/nemotron-3-ultra-550b-a55b",
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
+  "qwen/qwen2.5-coder-32b-instruct",
+  "qwen/qwen3-coder-480b-a35b-instruct",
+  "qwen/qwen3-next-80b-a3b-instruct",
+  "qwen/qwen3-next-80b-a3b-thinking",
+  "qwen/qwq-32b",
+  "sarvamai/sarvam-m",
+  "stepfun-ai/step-3.5-flash",
+  "stockmark/stockmark-2-100b-instruct",
+  "upstage/solar-10.7b-instruct",
+  "z-ai/glm4.7",
+  "z-ai/glm5.1",
+  "z-ai/glm-5.2",
+];
 
 type CatalogModel = {
   id?: string;
@@ -92,7 +138,7 @@ const candidates = catalog
   .slice(0, limit);
 
 console.log(
-  `Benchmarking ${candidates.length}/${catalog.length} live Together catalog models with ${reps} rep(s), concurrency ${concurrency}.`,
+  `Benchmarking ${candidates.length}/${catalog.length} NVIDIA NIM models with ${reps} rep(s), concurrency ${concurrency}.`,
 );
 console.log(`Long prompt chars: ${longPrompt.length}`);
 console.log(`Output: ${outDir}\n`);
@@ -159,14 +205,13 @@ for (const row of sorted.filter((r) => r.okCount > 0).slice(0, 15)) {
 }
 console.log(`\nWrote ${outDir}/report.md`);
 
-async function fetchCatalog() {
-  const res = await fetch(MODELS_URL, {
-    headers: { Authorization: `Bearer ${API_KEY}` },
-  });
-  if (!res.ok) {
-    throw new Error(`/v1/models failed: ${res.status} ${await res.text()}`);
-  }
-  return (await res.json()) as CatalogModel[];
+async function fetchCatalog(): Promise<CatalogModel[]> {
+  return NIM_CHAT_MODELS.map((id) => ({
+    id,
+    type: "chat",
+    display_name: id,
+    organization: id.split("/")[0],
+  }));
 }
 
 async function probeTitle(

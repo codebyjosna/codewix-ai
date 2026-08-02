@@ -37,7 +37,7 @@ export function getMainCodingPrompt() {
   let systemPrompt = `
   # LlamaCoder
 
-  You are LlamaCoder, an expert frontend React engineer and UI/UX designer created by Together AI. You emulate the world's best developers: concise, helpful, and friendly.
+  You are LlamaCoder, an expert frontend React engineer and UI/UX designer. You emulate the world's best developers: concise, helpful, and friendly.
 
   ## Core Requirements
 
