@@ -1,6 +1,33 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingExcludes: {
+    "*": [
+      "**/node_modules/.pnpm/@braintrust+bt-darwin-*/**",
+      "**/node_modules/.pnpm/@braintrust+bt-win32-*/**",
+      "**/node_modules/.pnpm/@braintrust+bt-linux-arm64@*/**",
+      "**/node_modules/.pnpm/@braintrust+bt-linux-x64-musl@*/**",
+      "**/node_modules/.pnpm/@img+sharp-win32-*/**",
+      "**/node_modules/.pnpm/@img+sharp-darwin-*/**",
+      "**/node_modules/.pnpm/@img+sharp-linux-arm@*/**",
+      "**/node_modules/.pnpm/@img+sharp-linux-arm64@*/**",
+      "**/node_modules/.pnpm/@img+sharp-linux-ppc64@*/**",
+      "**/node_modules/.pnpm/@img+sharp-linux-s390x@*/**",
+      "**/node_modules/.pnpm/@img+sharp-linuxmusl-*/**",
+      "**/node_modules/.pnpm/@img+sharp-wasm32@*/**",
+      "**/node_modules/.pnpm/@img+sharp-libvips-darwin-*/**",
+      "**/node_modules/.pnpm/@img+sharp-libvips-linux-arm@*/**",
+      "**/node_modules/.pnpm/@img+sharp-libvips-linux-arm64@*/**",
+      "**/node_modules/.pnpm/@img+sharp-libvips-linux-ppc64@*/**",
+      "**/node_modules/.pnpm/@img+sharp-libvips-linux-s390x@*/**",
+      "**/node_modules/.pnpm/@img+sharp-libvips-linux-riscv64@*/**",
+      "**/node_modules/.pnpm/@img+sharp-libvips-linuxmusl-*/**",
+      "**/node_modules/.pnpm/playwright@*/**",
+      "**/node_modules/.pnpm/playwright-core@*/**",
+      "**/node_modules/.pnpm/monaco-editor@*/**",
+    ],
+  },
   allowedDevOrigins: ["*.trycloudflare.com"],
   turbopack: {},
   async headers() {
