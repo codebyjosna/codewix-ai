@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       data: { emailVerified: true },
     });
     await createSession(user.id);
-    return NextResponse.json({ redirect: `/user/${user.id}` });
+    return NextResponse.json({ redirect: "/" });
   }
 
   const resetToken = await createResetToken(email);
