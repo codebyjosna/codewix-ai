@@ -211,6 +211,7 @@ export default function ProjectCreateDialog({
                 onValueChange={(value) => {
                   if (value !== null) setProjectTypeId(value);
                 }}
+                items={Object.fromEntries(types.map((t) => [t.id, t.name]))}
                 disabled={optionsLoading || types.length === 0}
               >
                 <SelectTrigger className="w-full border border-gray-300 px-3 py-2 text-sm text-gray-900">
@@ -300,6 +301,9 @@ export default function ProjectCreateDialog({
                 onValueChange={(value) => {
                   if (value !== null) setVisibilityId(value);
                 }}
+                items={Object.fromEntries(
+                  visibilities.map((v) => [v.id, v.name]),
+                )}
                 disabled={optionsLoading || visibilities.length === 0}
               >
                 <SelectTrigger className="w-full border border-gray-300 px-3 py-2 text-sm text-gray-900">
