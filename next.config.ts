@@ -2,6 +2,17 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Amplify's SSR compute doesn't inject configured env vars into the
+  // runtime process; bake them into the server bundle at build time instead
+  // (build-time env access is confirmed working). Server-only, never
+  // referenced from client components, so this never reaches the browser.
+  env: {
+    DATABASE_URL: process.env.DATABASE_URL,
+    AUTH_SECRET: process.env.AUTH_SECRET,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    TOGETHER_API_KEY: process.env.TOGETHER_API_KEY,
+  },
   outputFileTracingExcludes: {
     "*": [
       "**/node_modules/.pnpm/@braintrust+bt-darwin-*/**",
