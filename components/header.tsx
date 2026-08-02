@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -22,34 +22,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
+import { useCurrentUser, type CurrentUser } from "@/hooks/use-current-user";
 
-type CurrentUser = { id: string; name: string };
-
-function Header({ variant = "light" }: { variant?: "light" | "dark" }) {
+function Header({
+  variant = "light",
+  initialUser,
+}: {
+  variant?: "light" | "dark";
+  initialUser?: CurrentUser | null;
+}) {
   const isDark = variant === "dark";
   const router = useRouter();
 
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const { user, loaded } = useCurrentUser(initialUser);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) setUser(data.user);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function handleSignOut() {
     setSigningOut(true);

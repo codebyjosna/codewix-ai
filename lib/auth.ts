@@ -73,8 +73,15 @@ export async function getCurrentUser() {
   const userId = await getSessionUserId();
   if (!userId) return null;
 
-  const prisma = getPrisma();
-  return prisma.user.findUnique({ where: { id: userId } });
+  try {
+    const prisma = getPrisma();
+    return await prisma.user.findUnique({ where: { id: userId } });
+  } catch (err) {
+    // A transient DB error shouldn't crash pages that just want to know
+    // whether someone is signed in (e.g. header/nav); treat as signed out.
+    console.error("getCurrentUser: failed to load user", err);
+    return null;
+  }
 }
 
 // Short-lived token proving OTP-verified ownership of an email, used to

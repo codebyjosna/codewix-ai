@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/auth";
 import { screenshotToCodePrompt } from "@/lib/prompts";
 import { buildProductionCodingPrompt } from "@/lib/prompt-config";
 import Together from "together-ai";
@@ -14,6 +15,14 @@ import {
 import type { Span } from "braintrust";
 
 export async function POST(request: NextRequest) {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Sign in required to create an app" },
+      { status: 401 },
+    );
+  }
+
   const logger = getBraintrustLogger();
   let traceStarted = false;
 
