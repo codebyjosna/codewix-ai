@@ -39,5 +39,5 @@ export async function POST(req: NextRequest) {
   }
 
   await createSession(user.id);
-  return NextResponse.json({ redirect: "/" });
+  return NextResponse.json({ redirect: `/${user.id}` });
 }

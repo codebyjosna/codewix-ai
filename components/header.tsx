@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -34,18 +34,23 @@ function Header({
   const isDark = variant === "dark";
   const router = useRouter();
 
-  const { user, loaded } = useCurrentUser(initialUser);
+  const { user, loaded, setUser } = useCurrentUser(initialUser);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [isNavigatingHome, startNavigateHome] = useTransition();
 
   async function handleSignOut() {
     setSigningOut(true);
     try {
       await fetch("/api/auth/signout", { method: "POST" });
+      // Reflect signed-out state immediately; don't wait on navigation.
+      setUser(null);
       setConfirmOpen(false);
-      router.push("/");
-      router.refresh();
+      startNavigateHome(() => {
+        router.push("/");
+        router.refresh();
+      });
     } catch {
       toast({
         title: "Failed to sign out",
@@ -61,9 +66,11 @@ function Header({
     ? "rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition hover:bg-white/20"
     : "rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50";
 
+  const isBusy = signingOut || isNavigatingHome;
+
   return (
     <header className="relative z-10 mx-auto flex w-full shrink-0 items-center justify-between px-4 py-6 sm:px-6">
-      <Link href="/" className="flex items-center gap-2">
+      <Link href={user ? `/${user.id}` : "/"} className="flex items-center gap-2">
         <span
           className={`text-2xl font-extrabold tracking-tight ${
             isDark ? "text-white" : "text-gray-900"
@@ -73,7 +80,7 @@ function Header({
         </span>
       </Link>
 
-      {!loaded ? (
+      {!loaded || isBusy ? (
         <div
           className={`h-9 w-24 animate-pulse rounded-xl ${
             isDark ? "bg-white/10" : "bg-gray-200"

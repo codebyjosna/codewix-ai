@@ -20,6 +20,17 @@ export function useCurrentUser(initialUser?: CurrentUser | null) {
   const [user, setUser] = useState<CurrentUser | null>(initialUser ?? null);
   const [loaded, setLoaded] = useState(hasInitial);
 
+  // `useState(initialUser)` only seeds the very first render. When a parent
+  // server component re-runs (e.g. after router.refresh() post sign-in/out)
+  // and hands down a *new* initialUser, this keeps the already-mounted
+  // Header/page in sync instead of showing stale state until a hard reload.
+  useEffect(() => {
+    if (!hasInitial) return;
+    setUser(initialUser ?? null);
+    setLoaded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasInitial, initialUser?.id, initialUser?.name]);
+
   useEffect(() => {
     if (hasInitial) return;
 
@@ -39,5 +50,5 @@ export function useCurrentUser(initialUser?: CurrentUser | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { user, loaded };
+  return { user, loaded, setUser };
 }
