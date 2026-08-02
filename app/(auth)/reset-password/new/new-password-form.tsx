@@ -1,0 +1,117 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, FormEvent } from "react";
+import { toast } from "@/hooks/use-toast";
+
+export default function NewPasswordForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") || "";
+
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      toast({ description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+
+    setPending(true);
+    try {
+      const res = await fetch("/api/auth/reset-password/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resetToken: token, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const message = data.error || "Something went wrong";
+        setError(message);
+        toast({ description: message, variant: "destructive" });
+        return;
+      }
+
+      toast({ description: "Password updated. Please sign in." });
+      router.push("/signin");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (!token) {
+    return (
+      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <p className="text-sm text-gray-600">
+          This reset link is invalid or has expired.
+        </p>
+        <Link
+          href="/reset-password"
+          className="mt-4 inline-block font-medium text-gray-900 hover:underline"
+        >
+          Request a new one
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+      <h1 className="mb-6 text-2xl font-bold">Set a new password</h1>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <fieldset disabled={pending} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="password" className="text-sm font-medium">
+              New password
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="confirmPassword" className="text-sm font-medium">
+              Confirm password
+            </label>
+            <input
+              id="confirmPassword"
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <button
+            type="submit"
+            className="mt-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+          >
+            {pending ? "Saving..." : "Save new password"}
+          </button>
+        </fieldset>
+      </form>
+    </div>
+  );
+}

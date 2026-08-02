@@ -17,8 +17,8 @@ function Header({ variant = "light" }: { variant?: "light" | "dark" }) {
         </span>
       </Link>
 
-      <button
-        type="button"
+      <Link
+        href="/signin"
         className={
           isDark
             ? "rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition hover:bg-white/20"
@@ -26,7 +26,7 @@ function Header({ variant = "light" }: { variant?: "light" | "dark" }) {
         }
       >
         Sign in
-      </button>
+      </Link>
     </header>
   );
 }
