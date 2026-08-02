@@ -5,10 +5,7 @@ import Fieldset from "@/components/fieldset";
 import ArrowRightIcon from "@/components/icons/arrow-right";
 import LoadingButton from "@/components/loading-button";
 import Spinner from "@/components/spinner";
-import bgImg from "@/public/halo.png";
 import assert from "assert";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Select,
@@ -82,36 +79,32 @@ export default function Home() {
   );
 
   return (
-    <div className="relative flex grow flex-col">
-      <div className="absolute inset-0 flex justify-center">
-        <Image
-          src={bgImg}
-          alt=""
-          className="max-h-[953px] w-full max-w-[1200px] object-cover object-top mix-blend-screen"
-          priority
-        />
+    <div className="relative flex grow flex-col overflow-hidden bg-gradient-to-br from-[#1e1b4b] via-[#1e3a8a] to-[#4c1d95]">
+      <div className="animate-gradient-shift pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-600 via-fuchsia-600 to-cyan-500 opacity-70" />
+
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="animate-float-orb absolute -top-24 -left-24 h-96 w-96 rounded-full bg-cyan-400/40 blur-[100px]" />
+        <div className="animate-float-orb-slow absolute top-1/4 -right-24 h-[28rem] w-[28rem] rounded-full bg-fuchsia-500/40 blur-[110px]" />
+        <div className="animate-float-orb-delay absolute -bottom-32 left-1/3 h-[26rem] w-[26rem] rounded-full bg-blue-500/40 blur-[100px]" />
       </div>
 
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.15]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }}
+      />
+
       <div className="isolate flex h-full grow flex-col">
-        <Header />
+        <Header variant="dark" />
 
         <div className="mt-10 flex grow flex-col items-center px-4 lg:mt-16">
-          <a
-            className="mb-4 inline-flex shrink-0 items-center rounded-full border-[0.5px] border-[#BABABA] px-3.5 py-1.5 text-xs text-black transition-shadow"
-            href="https://togetherai.link/?utm_source=llamacoder&utm_medium=referral&utm_campaign=example-app"
-            target="_blank"
-          >
-            <span className="text-center">
-              Powered by <span className="font-semibold">Together AI</span>.
-              Used by
-              <span className="font-semibold"> 1.1M+ users. </span>
-            </span>
-          </a>
-
-          <h1 className="mt-4 text-balance text-center text-4xl leading-none text-gray-700 md:text-[64px] lg:mt-8">
-            Turn your <span className="text-blue-500">idea</span>
+          <h1 className="mt-4 text-balance text-center text-4xl leading-none text-white drop-shadow-sm md:text-[64px] lg:mt-8">
+            Turn your <span className="text-cyan-300">idea</span>
             <br className="hidden md:block" /> into an{" "}
-            <span className="text-blue-500">app</span>
+            <span className="text-cyan-300">app</span>
           </h1>
 
           <form
@@ -163,7 +156,7 @@ export default function Home() {
           >
             <Fieldset>
               <div
-                className={`relative flex w-full max-w-2xl rounded-xl border border-gray-300 bg-white pb-10 transition-[height] ${isPending ? "h-28 overflow-hidden" : ""}`}
+                className={`relative flex w-full max-w-2xl rounded-xl border border-white/40 bg-white/90 pb-10 shadow-2xl shadow-black/20 backdrop-blur-xl transition-[height] ${isPending ? "h-28 overflow-hidden" : ""}`}
               >
                 <div className="w-full">
                   {screenshotLoading && (
@@ -367,7 +360,7 @@ export default function Home() {
                         }
                       }, 0);
                     }}
-                    className="rounded bg-[#E5E9EF] px-2.5 py-1.5 text-xs tracking-[0%] transition-colors hover:bg-[#cccfd5]"
+                    className="rounded bg-gray-100 px-2.5 py-1.5 text-xs tracking-[0%] text-gray-700 transition-colors hover:bg-gray-200"
                   >
                     {v.title}
                   </button>
@@ -385,57 +378,8 @@ export default function Home() {
 
 const Footer = memo(() => {
   return (
-    <footer className="flex w-full flex-col items-center justify-between space-y-3 px-5 pb-3 pt-5 text-center sm:flex-row sm:pt-2">
-      <div>
-        <div className="font-medium">
-          Built with{" "}
-          <a
-            href="https://togetherai.link/?utm_source=llamacoder&utm_medium=referral&utm_campaign=example-app"
-            className="font-semibold text-blue-600 underline-offset-4 transition hover:text-gray-700 hover:underline"
-          >
-            Llama
-          </a>{" "}
-          and{" "}
-          <a
-            href="https://togetherai.link/?utm_source=llamacoder&utm_medium=referral&utm_campaign=example-app"
-            className="font-semibold text-blue-600 underline-offset-4 transition hover:text-gray-700 hover:underline"
-          >
-            Together AI
-          </a>
-          .
-        </div>
-      </div>
-      <div className="flex items-center gap-4 pb-4 sm:pb-0">
-        <Link href="https://x.com/nutlope" className="group" aria-label="">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 fill-slate-500 group-hover:fill-slate-700"
-          >
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M10.7465 16L6.8829 10.2473L2.04622 16H0L5.97508 8.89534L0 0H5.25355L8.8949 5.42183L13.4573 0H15.5036L9.80578 6.77562L16 16H10.7465ZM13.0252 14.3782H11.6475L2.92988 1.62182H4.30767L7.79916 6.72957L8.40293 7.6159L13.0252 14.3782Z"
-              fill="#71717a"
-            />
-          </svg>
-        </Link>
-        <Link
-          href="https://github.com/Nutlope/llamacoder"
-          className="group"
-          aria-label=""
-        >
-          <svg
-            aria-hidden="true"
-            className="h-6 w-6 fill-slate-500 group-hover:fill-slate-700"
-          >
-            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2Z" />
-          </svg>
-        </Link>
-      </div>
+    <footer className="flex w-full flex-col items-center justify-center space-y-1 px-5 pb-4 pt-5 text-center text-sm text-white/70">
+      <div>&copy; {new Date().getFullYear()} Codewix. All rights reserved.</div>
     </footer>
   );
 });

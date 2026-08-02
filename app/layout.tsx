@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import PlausibleProvider from "next-plausible";
 import "./globals.css";
 
-let title = "Llama Coder – AI Code Generator";
-let description = "Generate your next app with Llama 3.1 405B";
+let title = "Codewix – AI App Generator";
+let description = "Turn your idea into an app with Codewix.";
 let url = "https://llamacoder.io/";
 let ogimage = "https://llamacoder.io/og-image.png";
-let sitename = "llamacoder.io";
+let sitename = "Codewix";
 
 export const metadata: Metadata = {
   metadataBase: new URL(url),

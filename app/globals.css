@@ -98,6 +98,49 @@
   }
 }
 
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes float-orb {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate3d(3%, -5%, 0) scale(1.1) rotate(8deg);
+  }
+  66% {
+    transform: translate3d(-4%, 4%, 0) scale(0.92) rotate(-6deg);
+  }
+}
+
+.animate-gradient-shift {
+  background-size: 300% 300%;
+  animation: gradient-shift 16s ease infinite;
+}
+
+.animate-float-orb {
+  animation: float-orb 14s ease-in-out infinite;
+}
+
+.animate-float-orb-slow {
+  animation: float-orb 20s ease-in-out infinite;
+}
+
+.animate-float-orb-delay {
+  animation: float-orb 17s ease-in-out infinite;
+  animation-delay: -6s;
+}
+
 @layer base {
   * {
     @apply border-border;
