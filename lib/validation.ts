@@ -71,12 +71,19 @@ export const projectNameSchema = z
 export const projectDescriptionSchema = z
   .string()
   .trim()
-  .min(200, "Description must be at least 200 characters")
+  .min(10, "Description must be at least 10 characters")
   .max(1000, "Description must be at most 1000 characters");
+
+export const buildPromptSchema = z
+  .string()
+  .trim()
+  .min(1, "Build prompt is required")
+  .max(8000, "Build prompt is too long");
 
 export const createProjectSchema = z.object({
   name: projectNameSchema,
   description: projectDescriptionSchema,
+  buildPrompt: buildPromptSchema,
   projectTypeId: z.string().uuid("Invalid project type"),
   visibilityId: z.string().uuid("Invalid visibility option"),
   screenshotUrl: z.string().trim().url("Invalid screenshot URL").max(2048).optional(),

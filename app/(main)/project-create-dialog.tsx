@@ -18,7 +18,7 @@ import {
 import ProjectCreatingOverlay from "@/components/project-creating-overlay";
 
 const NAME_MAX = 100;
-const DESCRIPTION_MIN = 200;
+const DESCRIPTION_MIN = 10;
 const DESCRIPTION_MAX = 1000;
 
 type ProjectOption = { id: string; name: string; slug: string };
@@ -33,14 +33,14 @@ type FieldErrors = {
 export default function ProjectCreateDialog({
   open,
   onOpenChange,
-  initialDescription,
+  buildPrompt,
   screenshotUrl,
   onSignInRequired,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialDescription: string;
+  buildPrompt: string;
   screenshotUrl?: string;
   onSignInRequired: () => void;
   onCreated: (result: {
@@ -57,7 +57,7 @@ export default function ProjectCreateDialog({
 
   const [projectTypeId, setProjectTypeId] = useState("");
   const [name, setName] = useState("");
-  const [description, setDescription] = useState(initialDescription);
+  const [description, setDescription] = useState("");
   const [visibilityId, setVisibilityId] = useState("");
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -65,11 +65,11 @@ export default function ProjectCreateDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
 
-  // Refresh dropdown data + reset the form each time the dialog opens.
+  // Reset the form each time the dialog opens.
   useEffect(() => {
     if (!open) return;
 
-    setDescription(initialDescription);
+    setDescription("");
     setName("");
     setFieldErrors({});
     setSubmitError(null);
@@ -151,6 +151,7 @@ export default function ProjectCreateDialog({
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim(),
+          buildPrompt,
           projectTypeId,
           visibilityId,
           screenshotUrl,
@@ -197,8 +198,9 @@ export default function ProjectCreateDialog({
         <DialogContent className="max-w-xl">
           <DialogTitle>Create your project</DialogTitle>
           <DialogDescription>
-            Tell us a bit more about what you&apos;re building so we can pick
-            the right setup and AI model for it.
+            Tell us a bit more about your project. This description is saved
+            with your project for reference — it is not used as the build
+            prompt.
           </DialogDescription>
 
           <div className="mt-5 space-y-4">
@@ -267,7 +269,7 @@ export default function ProjectCreateDialog({
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={DESCRIPTION_MAX}
                 rows={5}
-                placeholder="Describe what you're building in detail - the more specific, the better we can pick the right AI model..."
+                placeholder="A brief description of your project for your reference..."
                 className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
               />
               <div className="mt-1 flex items-center justify-between">
@@ -277,7 +279,7 @@ export default function ProjectCreateDialog({
                   </p>
                 ) : (
                   <span className="text-xs text-gray-400">
-                    Minimum {DESCRIPTION_MIN} characters
+                    Saved with your project, not used as a build prompt
                   </span>
                 )}
                 <span

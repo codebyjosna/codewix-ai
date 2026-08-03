@@ -375,7 +375,7 @@ export default function HomeClient({
       <ProjectCreateDialog
         open={projectDialogOpen}
         onOpenChange={setProjectDialogOpen}
-        initialDescription={prompt}
+        buildPrompt={prompt}
         screenshotUrl={screenshotUrl}
         onSignInRequired={() => setSignInDialogOpen(true)}
         onCreated={handleProjectCreated}

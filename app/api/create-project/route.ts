@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
-  const { name, description, projectTypeId, visibilityId, screenshotUrl } =
+  const { name, description, buildPrompt, projectTypeId, visibilityId, screenshotUrl } =
     parsed.data;
 
   const prisma = getPrisma();
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const model = chooseModelForProject(projectType.slug, description);
+  const model = chooseModelForProject(projectType.slug, buildPrompt);
   const chatId = createRandomId();
 
   const logger = getBraintrustLogger();
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     const run = async (rootSpan?: Span) => {
       const { lastMessageId } = await createChatRecord({
         chatId,
-        prompt: description,
+        prompt: buildPrompt,
         model,
         screenshotUrl,
         rootSpan,
@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
         input: {
           name,
           description,
+          buildPrompt,
           projectType: projectType.slug,
           visibility: visibility.slug,
           hasScreenshot: Boolean(screenshotUrl),
