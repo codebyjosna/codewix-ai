@@ -47,6 +47,10 @@ export default function CodeViewer({
   onRestore,
   isFixPending,
   allowAutoFix,
+  isStreaming,
+  streamError,
+  streamElapsedMs,
+  onStopGeneration,
 }: {
   chat: Chat;
   streamText: string;
@@ -63,6 +67,10 @@ export default function CodeViewer({
   ) => void;
   isFixPending?: boolean;
   allowAutoFix?: boolean;
+  isStreaming?: boolean;
+  streamError?: string | null;
+  streamElapsedMs?: number;
+  onStopGeneration?: () => void;
 }) {
   const streamAllFiles = extractAllCodeBlocks(streamText);
 
@@ -352,9 +360,82 @@ export default function CodeViewer({
       </div>
 
       <div className="relative flex grow flex-col overflow-y-auto bg-white">
+        {/* Error banner: shown when the stream failed (network, timeout,
+            server error). Surfaces the message inline so the user knows
+            why nothing is rendering, instead of just seeing a blank panel. */}
+        {streamError && (
+          <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="flex items-start gap-2">
+              <svg
+                className="mt-0.5 size-4 shrink-0 text-red-500"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.94 7.94a1 1 0 11-2 0 1 1 0 012 0zM9 10a1 1 0 011-1h.01a1 1 0 01.99 1.13l-.5 4a1 1 0 11-1.98-.26l.5-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="flex-1">
+                <p className="font-medium">Generation failed</p>
+                <p className="mt-0.5 text-xs text-red-600">{streamError}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Streaming placeholder: when a generation is in-flight but no
+            code blocks have arrived yet, the model is still in its
+            "thinking/planning" phase. Previously the panel was hidden
+            entirely during this window, which felt like "nothing is
+            building". Show a clear progress state instead. */}
+        {isStreaming && files.length === 0 && !streamError && (
+          <div className="flex grow flex-col items-center justify-center gap-6 px-6 py-12 text-center">
+            <div className="relative flex size-16 items-center justify-center">
+              <div className="absolute inset-0 animate-ping rounded-full bg-blue-300/30" />
+              <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+              <div
+                className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-blue-500"
+                style={{ animationDuration: "900ms" }}
+              />
+              <div className="absolute inset-3 animate-pulse rounded-full bg-blue-400/20" />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-base font-medium text-gray-900">
+                Building your app
+              </p>
+              <p className="max-w-xs text-sm text-gray-500">
+                {streamText
+                  ? "The model is planning the structure. Code will appear here as soon as files are generated."
+                  : "The model is thinking through your request. This can take 30-60 seconds for complex apps."}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {typeof streamElapsedMs === "number" &&
+                streamElapsedMs > 0 && (
+                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-xs text-gray-600">
+                    {formatElapsed(streamElapsedMs)}
+                  </span>
+                )}
+              {onStopGeneration && (
+                <button
+                  type="button"
+                  onClick={onStopGeneration}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                >
+                  Stop generation
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div
           className={
-            activeTab === "code" ? "flex grow flex-col overflow-hidden" : "hidden"
+            activeTab === "code" && (files.length > 0 || !isStreaming)
+              ? "flex grow flex-col overflow-hidden"
+              : "hidden"
           }
         >
           <StickToBottom
@@ -441,4 +522,12 @@ export default function CodeViewer({
       </div>
     </>
   );
+}
+
+function formatElapsed(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}s`;
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }
