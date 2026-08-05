@@ -356,11 +356,19 @@ function buildProviderErrorMessage(
  * provider. For example, if the model is on "groq", returns
  * ["gemini", "cerebras", "openrouter"] (skipping groq itself since it
  * already failed).
+ *
+ * The chain wraps around circularly — if the primary provider is the last
+ * one (e.g. openrouter), we circle back to the first (groq) so that
+ * provider-exclusive models (e.g. Qwen 3 Coder on OpenRouter) can still
+ * fall back to Groq / Gemini / Cerebras.
  */
 function getFallbackProviders(primaryProviderKey: string): string[] {
   const idx = PROVIDER_FALLBACK_ORDER.indexOf(primaryProviderKey);
   if (idx === -1) return [...PROVIDER_FALLBACK_ORDER];
-  return PROVIDER_FALLBACK_ORDER.slice(idx + 1);
+  // Take everything after the primary, then wrap around to the beginning
+  const after = PROVIDER_FALLBACK_ORDER.slice(idx + 1);
+  const before = PROVIDER_FALLBACK_ORDER.slice(0, idx);
+  return [...after, ...before];
 }
 
 /**
