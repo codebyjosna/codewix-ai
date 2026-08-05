@@ -1,7 +1,7 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
 import { buildProductionCodingPrompt } from "@/lib/prompt-config";
-import { resolveModel } from "@/lib/constants";
+import { resolveModelSlug } from "@/lib/ai-provider";
 import { createLocalChatTitle } from "@/lib/chat-title";
 import { serializeBraintrustError } from "@/lib/braintrust";
 import type { Span } from "braintrust";
@@ -50,7 +50,9 @@ export async function createChatRecord({
   rootSpan?: Span;
   route: string;
 }): Promise<{ chatId: string; lastMessageId: string }> {
-  const resolvedModel = resolveModel(model);
+  // Store the model slug (not the provider-level ID) in the DB.
+  // The slug is what the UI sends and what ai-provider resolves at call time.
+  const modelSlug = resolveModelSlug(model).slug;
   let fullScreenshotDescription: string | undefined;
 
   if (screenshotUrl) {
@@ -90,7 +92,7 @@ export async function createChatRecord({
   await prisma.chat.create({
     data: {
       id: chatId,
-      model: resolvedModel,
+      model: modelSlug,
       // The High-quality toggle was removed (benchmark: worse reliability, no
       // quality gain). All generations use the single minimal-v1 × inline path.
       quality: "low",

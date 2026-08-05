@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { getAIClient } from "@/lib/nvidia";
-import { resolveModel } from "@/lib/constants";
+import { getAIClientForModel, getProviderModelId, getProviderName } from "@/lib/ai-provider";
 import { getPrisma } from "@/lib/prisma";
 import {
   flushBraintrustSpan,
@@ -151,8 +150,9 @@ export async function POST(req: Request) {
     messages = [messages[0], messages[1], messages[2], ...messages.slice(-7)];
   }
 
-  const ai = getAIClient();
-  const resolvedModel = resolveModel(model);
+  const ai = getAIClientForModel(model);
+  const resolvedModel = getProviderModelId(model);
+  const providerName = getProviderName(model);
   const temperature = 0.4;
   // 20000, up from the benchmarked 13000: chat USzt_maT7friospM hit the 13k
   // cap mid-file on a detailed prompt, truncating the last fence — the file
@@ -186,7 +186,7 @@ export async function POST(req: Request) {
         requestedModel: model,
         resolvedModel,
         model: resolvedModel,
-        provider: "groq",
+        provider: providerName,
         messageCount: inputMessages.length,
         promptChars,
         temperature,

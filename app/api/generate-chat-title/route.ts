@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAIClient } from "@/lib/nvidia";
+import { getAIClientForModel, getProviderModelId, getProviderName } from "@/lib/ai-provider";
 import { getPrisma } from "@/lib/prisma";
 import {
   cleanGeneratedChatTitle,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/braintrust";
 import type { Span } from "braintrust";
 
-const TITLE_MODEL = "llama-3.1-8b-instant";
+import { TITLE_MODEL } from "@/lib/constants";
 
 export async function POST(request: NextRequest) {
   const logger = getBraintrustLogger();
@@ -99,9 +99,11 @@ export async function POST(request: NextRequest) {
       }
 
       const startedAt = performance.now();
-      const ai = getAIClient();
+      const ai = getAIClientForModel(TITLE_MODEL);
+      const titleModelId = getProviderModelId(TITLE_MODEL);
+      const titleProviderName = getProviderName(TITLE_MODEL);
       const response = await ai.chat.completions.create({
-        model: TITLE_MODEL,
+        model: titleModelId,
         temperature: 0.2,
         max_tokens: 24,
         messages: [
@@ -132,7 +134,7 @@ export async function POST(request: NextRequest) {
         output: generatedTitle,
         metadata: {
           model: TITLE_MODEL,
-          provider: "groq",
+          provider: titleProviderName,
         },
         metrics: {
           duration_ms: performance.now() - startedAt,
@@ -159,7 +161,7 @@ export async function POST(request: NextRequest) {
           route: "/api/generate-chat-title",
           chatId: chat.id,
           model: TITLE_MODEL,
-          provider: "groq",
+          provider: titleProviderName,
         },
       },
     });

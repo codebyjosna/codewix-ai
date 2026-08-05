@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrisma } from "@/lib/prisma";
 import { getSessionUserId } from "@/lib/auth";
-import { MODELS } from "@/lib/constants";
+import { isValidModel } from "@/lib/ai-provider";
 
 // Allow the user to switch the model mid-chat. The next message they send
 // will use the new model. We re-validate the model id against the MODELS
@@ -23,8 +23,7 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const allowedModels = MODELS.map((m) => m.value);
-  if (!allowedModels.includes(body.model)) {
+  if (!isValidModel(body.model)) {
     return NextResponse.json(
       { error: "Unknown model" },
       { status: 400 },

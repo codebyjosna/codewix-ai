@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { getAIClient } from "../../lib/nvidia";
+import { getAIClientForModel } from "../../lib/ai-provider";
 
 export type JudgeResult = {
   model: string;
@@ -132,15 +132,12 @@ function parseJsonObject(content: string): any {
 }
 
 function createGroqJudgeRequest(): JudgeRequest {
-  const ai = getAIClient();
+  const ai = getAIClientForModel("llama-3.3-70b");
 
   return {
     create: async (options) => {
-      // NOTE: Groq does not support vision/image inputs.
-      // The judge prompt falls back to text-only using the prompt + expected behavior.
-      // For proper visual judging, add a vision provider (e.g. Google Gemini).
       const response = await ai.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+        model: options.model,
         temperature: 0,
         max_tokens: 1200,
         messages: [

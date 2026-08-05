@@ -1,5 +1,5 @@
-import { getAIClient } from "./nvidia";
-import { PLANNING_MODEL, resolveModel } from "./constants";
+import { getAIClient, resolveModel, resolveModelSlug, getAIClientForModel, getProviderModelId } from "./nvidia";
+import { PLANNING_MODEL } from "./constants";
 import {
   getMainCodingPrompt,
   softwareArchitectPrompt,
@@ -108,7 +108,9 @@ export async function generateApp(
     throw new Error(`Unsupported archMode: ${archMode}`);
   }
 
-  const ai = getAIClient();
+  const resolvedModelId = getProviderModelId(model);
+  const ai = getAIClientForModel(model);
+  const planningModelId = getProviderModelId(PLANNING_MODEL);
   const startedAt = performance.now();
 
   // archMode "none" mirrors the production default (quality "low"): the raw
@@ -120,8 +122,9 @@ export async function generateApp(
   // user prompt is the user message) but adds a short instruction to plan
   // internally while keeping the response code-only.
   if (archMode === "separate") {
-    const planResponse = await ai.chat.completions.create({
-      model: PLANNING_MODEL,
+    const planAi = getAIClientForModel(PLANNING_MODEL);
+    const planResponse = await planAi.chat.completions.create({
+      model: planningModelId,
       messages: [
         {
           role: "system",
@@ -220,7 +223,7 @@ export async function generateApp(
   }
 
   const stream = ai.chat.completions.stream({
-    model: resolveModel(model),
+    model: resolvedModelId,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: plan },
