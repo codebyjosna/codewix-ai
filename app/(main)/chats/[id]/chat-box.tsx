@@ -354,27 +354,25 @@ export default function ChatBox({
                   disabled={modelSwitching}
                 >
                   <SelectTrigger
-                    className="h-8 w-auto min-w-[120px] gap-1 border-gray-200 px-2 py-0 text-xs font-medium !outline-none !ring-0 !ring-transparent"
-                    title="Switch model"
+                    className="h-8 w-auto min-w-[140px] max-w-[200px] gap-1.5 border-gray-300 bg-gray-50 px-2.5 text-xs font-medium"
+                    title="Switch AI model"
                   >
                     <SelectValue>
                       {modelSwitching
-                        ? "Switching…"
+                        ? "Switching\u2026"
                         : (MODELS.find((m) => m.value === selectedModel)?.label ||
                           selectedModel)}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="max-w-[280px]">
+                  <SelectContent className="max-w-[320px]">
                     {MODELS.filter((m) => !m.hidden).map((m) => (
                       <SelectItem key={m.value} value={m.value}>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{m.label}</span>
-                          {m.note && (
-                            <span className="text-[10px] text-gray-500">
-                              {m.note}
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-medium">{m.label}</span>
+                        {m.note && (
+                          <span className="ml-2 text-[10px] text-gray-500">
+                            {m.note}
+                          </span>
+                        )}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -31,7 +31,7 @@ export type ModelOption = {
  * validation endpoint.  Derived from the registry — the `value` is the
  * model *slug* (e.g. "llama-3.3-70b"), NOT the provider-level model ID.
  */
-export const MODELS: ModelOption[] = getAllModels(true).map((m) => ({
+export const MODELS: ModelOption[] = getAllModels(true, false).map((m) => ({
   label: m.label,
   value: m.slug,
   hidden: m.hidden,

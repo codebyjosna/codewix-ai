@@ -2,6 +2,7 @@
 
 import { createMessage } from "@/app/(main)/actions";
 import LogoSmall from "@/components/icons/logo-small";
+import { ArrowLeftIcon } from "lucide-react";
 import {
   parseReplySegments,
   extractFirstCodeBlock,
@@ -44,14 +45,17 @@ const STREAM_IDLE_TIMEOUT_MS = 90_000;
 const STREAM_HARD_TIMEOUT_MS = 6 * 60_000;
 
 const HeaderChat = memo(({ title }: { title: string }) => (
-  <div
-    className="flex items-center gap-4 border-b border-gray-300 px-4 py-4"
-    style={{ backgroundColor: "#B2D5E5" }}
-  >
-    <a href="/" target="_blank">
+  <div className="flex h-12 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3">
+    <a
+      href="/"
+      className="flex shrink-0 items-center gap-1.5 rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+      title="Back to home"
+    >
+      <ArrowLeftIcon className="size-4" />
       <LogoSmall />
     </a>
-    <p className="italic text-gray-700">{title}</p>
+    <span className="text-gray-200" aria-hidden="true">|</span>
+    <p className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{title}</p>
   </div>
 ));
 
