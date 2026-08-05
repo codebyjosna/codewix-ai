@@ -215,9 +215,12 @@ export function getProviderName(slug: string): string {
   return PROVIDERS[entry.provider]?.name ?? entry.provider;
 }
 
-/** Check if a slug is a valid, known model. */
+/** Check if a slug is a valid, known model (including legacy aliases). */
 export function isValidModel(slug: string): boolean {
-  return slug in MODEL_REGISTRY;
+  if (slug in MODEL_REGISTRY) return true;
+  if (slug in LEGACY_SLUG_ALIASES) return true;
+  // Also accept raw provider-level model IDs that are used in registry entries
+  return Object.values(MODEL_REGISTRY).some((m) => m.modelId === slug);
 }
 
 // ---------- Legacy alias map ----------

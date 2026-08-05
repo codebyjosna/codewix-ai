@@ -40,6 +40,21 @@ const requestSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  try {
+    return await handleStreamRequest(req);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error";
+    // Return a structured JSON error so the client can display it
+    // instead of a bare 500 with empty body.
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+async function handleStreamRequest(req: Request) {
   const prisma = getPrisma();
 
   const parsed = requestSchema.safeParse(await req.json().catch(() => null));
