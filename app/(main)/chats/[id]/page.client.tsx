@@ -31,6 +31,7 @@ import ChatBox from "./chat-box";
 import ChatLog from "./chat-log";
 import CodeViewer from "./code-viewer";
 import CodeViewerLayout from "./code-viewer-layout";
+import ErrorDialog from "./error-dialog";
 import type { Chat, Message } from "./page";
 import { Context } from "../../providers";
 
@@ -43,11 +44,14 @@ const STREAM_IDLE_TIMEOUT_MS = 90_000;
 const STREAM_HARD_TIMEOUT_MS = 6 * 60_000;
 
 const HeaderChat = memo(({ title }: { title: string }) => (
-  <div className="flex items-center gap-4 px-4 py-4">
+  <div
+    className="flex items-center gap-4 border-b border-gray-300 px-4 py-4"
+    style={{ backgroundColor: "#B2D5E5" }}
+  >
     <a href="/" target="_blank">
       <LogoSmall />
     </a>
-    <p className="italic text-gray-500">{title}</p>
+    <p className="italic text-gray-700">{title}</p>
   </div>
 ));
 
@@ -182,14 +186,16 @@ export default function PageClient({ chat }: { chat: Chat }) {
     setStreamText("");
     setStreamPromise(undefined);
     setStreamElapsedMs(0);
-    setStreamError(null);
+    // CRITICAL: do NOT clear streamError here. The error handlers call
+    // setStreamError(...) and then resetStreamState() in the same tick —
+    // if we wipe the error here, React batches both updates and the user
+    // never sees the error message. The error stays visible in the
+    // ErrorDialog until the user dismisses it or starts a new generation
+    // (which clears it via setStreamError(null) in the stream-start path).
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // Cancel the underlying stream so its reader stops emitting content
-    // callbacks. Without this, a "stopped" generation keeps calling
-    // setStreamText in the background and clobbers the next prompt's text.
     if (activeStreamRef.current) {
       try {
         activeStreamRef.current.cancel();
@@ -217,6 +223,13 @@ export default function PageClient({ chat }: { chat: Chat }) {
       isHandlingStreamRef.current = true;
       context.setStreamPromise(undefined);
       setStreamError(null);
+      // Show the code viewer panel as soon as a stream starts, even before
+      // any code blocks arrive. Previously the panel only appeared when a
+      // `file` segment was detected in the stream content — but models
+      // often spend 30-60s on prose planning before emitting code, and
+      // during that window the panel was hidden, making the page look
+      // broken. Now the panel stays open for the entire stream lifecycle.
+      setIsShowingCodeViewer(true);
 
       // Cancel any previous controller (shouldn't happen, but cheap to guard).
       if (abortControllerRef.current) {
@@ -468,9 +481,12 @@ export default function PageClient({ chat }: { chat: Chat }) {
   // While a stream is in-flight, show the CodeViewer panel even before
   // any code arrives — the empty state ("Building your app…") is far
   // less alarming than a missing panel that the user can't explain.
-  const showViewerWhileStreaming = !!streamPromise && !streamError;
+  // Also keep the panel visible when there's a streamError so the error
+  // banner inside the panel is shown (rather than the panel vanishing
+  // and leaving a blank page).
+  const showViewerWhileStreaming = !!streamPromise;
   const effectiveShowViewer =
-    isShowingCodeViewer || showViewerWhileStreaming;
+    isShowingCodeViewer || showViewerWhileStreaming || !!streamError;
 
   return (
     <div className="h-dvh">
@@ -573,6 +589,11 @@ export default function PageClient({ chat }: { chat: Chat }) {
           )}
         </CodeViewerLayout>
       </div>
+
+      <ErrorDialog
+        error={streamError}
+        onClose={() => setStreamError(null)}
+      />
     </div>
   );
 }

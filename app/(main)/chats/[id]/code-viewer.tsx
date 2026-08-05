@@ -2,7 +2,7 @@
 
 import CloseIcon from "@/components/icons/close-icon";
 import RefreshIcon from "@/components/icons/refresh";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, GitBranch } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
   Select,
@@ -24,6 +24,7 @@ import { Share } from "./share";
 import { StickToBottom } from "use-stick-to-bottom";
 import JSZip from "jszip";
 import dynamic from "next/dynamic";
+import GitHubPushDialog from "./github-push-dialog";
 
 const CodeRunner = dynamic(() => import("@/components/code-runner"), {
   ssr: false,
@@ -217,6 +218,7 @@ export default function CodeViewer({
     (chat.assistantMessagesCountBefore || 0) + currentVersionIndex;
 
   const [refresh, setRefresh] = useState(0);
+  const [githubOpen, setGithubOpen] = useState(false);
   const disabledControls = !!streamText || files.length === 0;
   const selectValue = disabledControls
     ? undefined
@@ -280,15 +282,21 @@ export default function CodeViewer({
 
   return (
     <>
-      <div className="flex h-16 shrink-0 items-center justify-between border-b border-gray-300 px-4">
+      <div
+        className="flex h-16 shrink-0 items-center justify-between border-b border-gray-300 px-4"
+        style={{ backgroundColor: "#B2D5E5" }}
+      >
         <div className="inline-flex items-center gap-4">
           <button
-            className="hidden text-gray-400 hover:text-gray-700 md:block"
+            className="hidden text-gray-600 hover:text-gray-900 md:block"
             onClick={onClose}
+            title="Close panel"
           >
             <CloseIcon className="size-5" />
           </button>
-          <span className="hidden md:block">{appTitle}</span>
+          <span className="hidden font-semibold text-gray-800 md:block">
+            {appTitle}
+          </span>
           {!disabledControls && (
             <Select
               value={selectValue}
@@ -300,7 +308,7 @@ export default function CodeViewer({
               }}
               disabled={disabledControls}
             >
-              <SelectTrigger className="h-[38px] w-16 text-sm font-semibold !outline-none !ring-0 !ring-transparent">
+              <SelectTrigger className="h-[38px] w-16 bg-white text-sm font-semibold !outline-none !ring-0 !ring-transparent">
                 <SelectValue>{`v${currentVersion + 1}`}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -339,23 +347,66 @@ export default function CodeViewer({
             </button>
           )}
         </div>
-        <div className="rounded-lg border-2 border-gray-300 p-1">
-          <button
-            onClick={() => onTabChange("code")}
-            data-active={activeTab === "code" ? true : undefined}
-            disabled={disabledControls}
-            className="inline-flex h-7 w-16 items-center justify-center rounded text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 data-[active]:bg-blue-500 data-[active]:text-white"
-          >
-            Code
-          </button>
-          <button
-            onClick={() => onTabChange("preview")}
-            data-active={activeTab === "preview" ? true : undefined}
-            disabled={disabledControls}
-            className="inline-flex h-7 w-16 items-center justify-center rounded text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 data-[active]:bg-blue-500 data-[active]:text-white"
-          >
-            Preview
-          </button>
+
+        {/* Right side: Code/Preview toggle + action buttons (Share, Refresh, Download, GitHub) */}
+        <div className="flex items-center gap-2">
+          <div className="rounded-lg border-2 border-gray-400 bg-white/60 p-1">
+            <button
+              onClick={() => onTabChange("code")}
+              data-active={activeTab === "code" ? true : undefined}
+              disabled={disabledControls}
+              className="inline-flex h-7 w-16 items-center justify-center rounded text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 data-[active]:bg-blue-500 data-[active]:text-white"
+            >
+              Code
+            </button>
+            <button
+              onClick={() => onTabChange("preview")}
+              data-active={activeTab === "preview" ? true : undefined}
+              disabled={disabledControls}
+              className="inline-flex h-7 w-16 items-center justify-center rounded text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 data-[active]:bg-blue-500 data-[active]:text-white"
+            >
+              Preview
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Share
+              message={
+                disabledControls
+                  ? undefined
+                  : message && streamAllFiles.length === 0
+                    ? message
+                    : undefined
+              }
+            />
+            <button
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-gray-400 bg-white/70 px-2.5 text-xs font-medium text-gray-700 transition enabled:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setRefresh((r) => r + 1)}
+              disabled={disabledControls}
+              title="Refresh preview"
+            >
+              <RefreshIcon className="size-3" />
+              <span className="hidden lg:inline">Refresh</span>
+            </button>
+            <button
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-gray-400 bg-white/70 px-2.5 text-xs font-medium text-gray-700 transition enabled:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={handleDownloadFiles}
+              disabled={disabledControls}
+              title="Download files (.zip)"
+            >
+              <DownloadIcon className="size-3" />
+              <span className="hidden lg:inline">Download</span>
+            </button>
+            <button
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-3 text-xs font-medium text-white transition enabled:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setGithubOpen(true)}
+              disabled={files.length === 0}
+              title="Push to GitHub"
+            >
+              <GitBranch className="size-3.5" />
+              <span className="hidden lg:inline">Push to GitHub</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -385,36 +436,111 @@ export default function CodeViewer({
           </div>
         )}
 
-        {/* Streaming placeholder: when a generation is in-flight but no
-            code blocks have arrived yet, the model is still in its
-            "thinking/planning" phase. Previously the panel was hidden
-            entirely during this window, which felt like "nothing is
-            building". Show a clear progress state instead. */}
+        {/* Streaming placeholder: attractive 3D animated "Building your app"
+            scene. Bright gradient background (no black), orbiting cubes,
+            pulsing rings, and floating sparkles. Premium SaaS feel. */}
         {isStreaming && files.length === 0 && !streamError && (
-          <div className="flex grow flex-col items-center justify-center gap-6 px-6 py-12 text-center">
-            <div className="relative flex size-16 items-center justify-center">
-              <div className="absolute inset-0 animate-ping rounded-full bg-blue-300/30" />
-              <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+          <div
+            className="cw-gradient-bg relative flex grow flex-col items-center justify-center gap-8 overflow-hidden px-6 py-12 text-center"
+            style={{ perspective: "800px" }}
+          >
+            {/* Floating background sparkles */}
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <div
-                className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-blue-500"
-                style={{ animationDuration: "900ms" }}
+                className="cw-float-up absolute left-[15%] top-[80%] size-2 rounded-full bg-white/80"
+                style={{ animationDelay: "0s" }}
               />
-              <div className="absolute inset-3 animate-pulse rounded-full bg-blue-400/20" />
+              <div
+                className="cw-float-up absolute left-[35%] top-[80%] size-1.5 rounded-full bg-pink-200"
+                style={{ animationDelay: "0.8s" }}
+              />
+              <div
+                className="cw-float-up absolute left-[55%] top-[80%] size-2.5 rounded-full bg-cyan-200"
+                style={{ animationDelay: "1.6s" }}
+              />
+              <div
+                className="cw-float-up absolute left-[75%] top-[80%] size-1.5 rounded-full bg-purple-200"
+                style={{ animationDelay: "2.4s" }}
+              />
+              <div
+                className="cw-float-up absolute left-[25%] top-[80%] size-1 rounded-full bg-yellow-200"
+                style={{ animationDelay: "1.2s" }}
+              />
+              <div
+                className="cw-float-up absolute left-[85%] top-[80%] size-2 rounded-full bg-white/70"
+                style={{ animationDelay: "2s" }}
+              />
             </div>
-            <div className="space-y-1.5">
-              <p className="text-base font-medium text-gray-900">
+
+            {/* Pulsing rings behind the central cube */}
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <div
+                className="cw-pulse-ring absolute -left-20 -top-20 size-40 rounded-full border-2 border-cyan-300/60"
+                style={{ animationDelay: "0s" }}
+              />
+              <div
+                className="cw-pulse-ring absolute -left-20 -top-20 size-40 rounded-full border-2 border-purple-300/60"
+                style={{ animationDelay: "0.7s" }}
+              />
+              <div
+                className="cw-pulse-ring absolute -left-20 -top-20 size-40 rounded-full border-2 border-pink-300/60"
+                style={{ animationDelay: "1.4s" }}
+              />
+            </div>
+
+            {/* Central animated cube + orbiting satellites */}
+            <div
+              className="relative flex size-32 items-center justify-center"
+              style={{ transformStyle: "preserve-3d" }}
+            >
+              {/* Central rotating cube */}
+              <div
+                className="cw-cube-spin size-16"
+                style={{
+                  transformStyle: "preserve-3d",
+                  background:
+                    "linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%)",
+                  borderRadius: "12px",
+                  boxShadow:
+                    "0 12px 32px rgba(96,165,250,0.45), 0 4px 12px rgba(167,139,250,0.35)",
+                }}
+              />
+              {/* Orbiting satellite 1 */}
+              <div
+                className="cw-orbit absolute left-1/2 top-1/2 size-4 rounded-full bg-cyan-400 shadow-lg shadow-cyan-300/50"
+                style={{ marginLeft: "-8px", marginTop: "-8px" }}
+              />
+              {/* Orbiting satellite 2 (reverse, larger orbit) */}
+              <div
+                className="cw-orbit-reverse absolute left-1/2 top-1/2 size-3 rounded-full bg-pink-400 shadow-lg shadow-pink-300/50"
+                style={{ marginLeft: "-6px", marginTop: "-6px" }}
+              />
+              {/* Orbiting satellite 3 (offset start) */}
+              <div
+                className="cw-orbit absolute left-1/2 top-1/2 size-3 rounded-full bg-yellow-300 shadow-lg shadow-yellow-200/50"
+                style={{
+                  marginLeft: "-6px",
+                  marginTop: "-6px",
+                  animationDelay: "-2s",
+                }}
+              />
+            </div>
+
+            <div className="cw-bob space-y-2">
+              <p className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-2xl font-bold text-transparent">
                 Building your app
               </p>
-              <p className="max-w-xs text-sm text-gray-500">
+              <p className="max-w-xs text-sm font-medium text-gray-700">
                 {streamText
-                  ? "The model is planning the structure. Code will appear here as soon as files are generated."
+                  ? "Structuring files — code will appear here shortly."
                   : "The model is thinking through your request. This can take 30-60 seconds for complex apps."}
               </p>
             </div>
+
             <div className="flex items-center gap-3">
               {typeof streamElapsedMs === "number" &&
                 streamElapsedMs > 0 && (
-                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-xs text-gray-600">
+                  <span className="rounded-full bg-white/80 px-3 py-1 font-mono text-xs font-medium text-blue-700 shadow-sm backdrop-blur">
                     {formatElapsed(streamElapsedMs)}
                   </span>
                 )}
@@ -422,7 +548,7 @@ export default function CodeViewer({
                 <button
                   type="button"
                   onClick={onStopGeneration}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                  className="rounded-lg border border-blue-300 bg-white/90 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm transition hover:bg-white"
                 >
                   Stop generation
                 </button>
@@ -489,37 +615,12 @@ export default function CodeViewer({
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-gray-300 px-4 py-4">
-        <div className="inline-flex items-center gap-2.5 text-sm">
-          <Share
-            message={
-              disabledControls
-                ? undefined
-                : message && streamAllFiles.length === 0
-                  ? message
-                  : undefined
-            }
-          />
-          <button
-            className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-sm text-gray-600 transition enabled:hover:bg-white disabled:opacity-50"
-            onClick={() => setRefresh((r) => r + 1)}
-            disabled={disabledControls}
-          >
-            <RefreshIcon className="size-3" />
-            Refresh
-          </button>
-          <button
-            className="hidden items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-sm text-gray-600 transition hover:bg-white disabled:opacity-50 md:inline-flex"
-            onClick={handleDownloadFiles}
-            disabled={disabledControls}
-            title="Download files"
-          >
-            <DownloadIcon className="size-3" />
-            Download
-          </button>
-        </div>
-        <div className="text-xs text-gray-500 md:hidden">{chat.model}</div>
-      </div>
+      <GitHubPushDialog
+        open={githubOpen}
+        onOpenChange={setGithubOpen}
+        files={files.map((f) => ({ path: f.path, content: f.code }))}
+        appTitle={appTitle}
+      />
     </>
   );
 }
