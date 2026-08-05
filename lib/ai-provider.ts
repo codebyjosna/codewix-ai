@@ -230,7 +230,7 @@ export function getAIClientForModel(slug: string): OpenAI {
       false,
     );
   }
-  const apiKey = process.env[provider.envKey];
+  const apiKey = getProviderApiKey(entry.provider);
   if (!apiKey) {
     throw new AIProviderError(
       `MISSING_API_KEY`,
@@ -386,7 +386,7 @@ export function getAllFallbackModels(
 
   for (const providerKey of fallbacks) {
     const provider = PROVIDERS[providerKey];
-    if (!provider || !process.env[provider.envKey]) continue;
+    if (!provider || !getProviderApiKey(providerKey)) continue;
 
     const fallbackSlug = PROVIDER_DEFAULT_MODEL[providerKey];
     if (!fallbackSlug) continue;
@@ -468,4 +468,23 @@ const LEGACY_SLUG_ALIASES: Record<string, string> = {
   "llama-3.1-8b-instant": "llama-3.1-8b",
 };
 
+
+// ---------- Static env-var access (webpack-compatible) ----------
+//
+// In Next.js standalone mode, process.env is empty at runtime.
+// The next.config.ts env: block bakes values ONLY for references
+// that webpack can statically analyze (e.g. process.env.GROQ_API_KEY).
+// Dynamic access like process.env[variable] is NOT replaced and
+// returns undefined at runtime.  This helper uses a switch statement
+// so every branch is a static, analyzable reference.
+
+function getProviderApiKey(providerKey: string): string | undefined {
+  switch (providerKey) {
+    case 'groq':     return process.env.GROQ_API_KEY;
+    case 'gemini':   return process.env.GEMINI_API_KEY;
+    case 'cerebras': return process.env.CEREBRAS_API_KEY;
+    case 'openrouter': return process.env.OPENROUTER_API_KEY;
+    default: return undefined;
+  }
+}
 export { PROVIDERS, PROVIDER_FALLBACK_ORDER, buildProviderErrorMessage };
