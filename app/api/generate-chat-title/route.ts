@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
           route: "/api/generate-chat-title",
           chatId: chat.id,
           model: TITLE_MODEL,
-          provider: titleProviderName,
+          provider: getProviderName(TITLE_MODEL),
         },
       },
     });
