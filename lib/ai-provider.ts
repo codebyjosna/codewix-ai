@@ -245,6 +245,20 @@ export function getAIClientForModel(slug: string): OpenAI {
   });
 }
 
+/**
+ * Same as getAIClientForModel but returns undefined instead of throwing
+ * when the provider API key is missing.  Useful for fallback loops where
+ * you want to silently skip a provider.
+ */
+export function tryGetAIClientForModel(slug: string): OpenAI | undefined {
+  const entry = resolveModelSlug(slug);
+  const provider = PROVIDERS[entry.provider];
+  if (!provider) return undefined;
+  const apiKey = getProviderApiKey(entry.provider);
+  if (!apiKey) return undefined;
+  return new OpenAI({ apiKey, baseURL: provider.baseURL });
+}
+
 /** Get the raw provider-level model ID for a given slug. */
 export function getProviderModelId(slug: string): string {
   return resolveModelSlug(slug).modelId;
@@ -396,6 +410,25 @@ export function getAllFallbackModels(
   }
 
   return results;
+}
+
+/**
+ * Return an ordered list of model slugs to try: primary first, then
+ * all available fallback models from other providers.
+ * Used by lib/generation.ts for its non-streaming fallback loop.
+ */
+export function getFallbackModelSlugs(primaryModelSlug: string): string[] {
+  const primaryEntry = resolveModelSlug(primaryModelSlug);
+  const slugs: string[] = [primaryEntry.slug];
+  const fallbackEntries = getAllFallbackModels(primaryModelSlug);
+  for (const entry of fallbackEntries) {
+    // Avoid duplicates (e.g. if the primary model IS the default for
+    // its provider and the fallback wraps around)
+    if (!slugs.includes(entry.slug)) {
+      slugs.push(entry.slug);
+    }
+  }
+  return slugs;
 }
 
 /**
