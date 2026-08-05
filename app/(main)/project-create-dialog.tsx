@@ -341,10 +341,10 @@ export default function ProjectCreateDialog({
             <button
               type="button"
               onClick={handleCreate}
-              disabled={optionsLoading || Boolean(optionsError)}
+              disabled={optionsLoading || Boolean(optionsError) || isSubmitting}
               className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-500/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Create Project
+              {isSubmitting ? "Creating…" : "Create Project"}
             </button>
           </DialogFooter>
         </DialogContent>

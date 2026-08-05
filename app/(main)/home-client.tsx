@@ -317,6 +317,7 @@ export default function HomeClient({
                         className="relative inline-flex size-6 items-center justify-center rounded bg-blue-500 font-medium text-white shadow-lg outline-blue-300 hover:bg-blue-500/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-90"
                         type="submit"
                         disabled={screenshotLoading || prompt.length === 0}
+                        aria-label="Build your app"
                       >
                         <ArrowRightIcon />
                       </LoadingButton>

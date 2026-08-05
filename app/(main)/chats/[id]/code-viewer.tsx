@@ -596,8 +596,8 @@ export default function CodeViewer({
           <div
             className={
               activeTab === "preview"
-                ? "flex h-full items-center justify-center"
-                : "pointer-events-none absolute inset-0 flex h-full items-center justify-center opacity-0"
+                ? "flex flex-1 min-h-0 items-center justify-center"
+                : "pointer-events-none absolute inset-0 flex flex-1 min-h-0 items-center justify-center opacity-0"
             }
             aria-hidden={activeTab !== "preview"}
           >

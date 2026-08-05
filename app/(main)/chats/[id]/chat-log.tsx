@@ -176,7 +176,7 @@ function AssistantMessage({
   if (displayFileCount > 0) {
     // Handle single-file replies with interleaved text and one file
     return (
-      <div className="">
+      <div>
         {segments.map((seg, i) => {
           if (seg.type === "text") {
             return (
