@@ -15,14 +15,12 @@ export function createRandomId(size = 16) {
   return Array.from(bytes, (byte) => alphabet[byte & 63]).join("");
 }
 
-async function describeScreenshot(screenshotUrl: string, span?: Span) {
-  const startedAt = performance.now();
-  // NOTE: Groq does not offer vision models. Screenshot-to-code description
-  // is skipped — the user's text prompt is used as-is.
-  // If you add a vision provider later (e.g. Google Gemini, NVIDIA free tier),
-  // swap this function to call that provider's vision endpoint.
+async function describeScreenshot(_screenshotUrl: string, span?: Span) {
+  // NOTE: Vision models (e.g. Gemini) are now available but screenshot
+  // description is not yet wired up. The user's text prompt is used as-is.
+  // TODO: When ready, use a vision-capable provider to describe the screenshot.
   console.warn(
-    "Screenshot processing skipped: Groq does not support vision models.",
+    "Screenshot processing skipped: vision description not yet implemented.",
   );
   span?.log({
     metadata: {

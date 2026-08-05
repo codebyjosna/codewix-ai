@@ -1,4 +1,10 @@
-import { getAIClientForModel, getProviderModelId } from "./ai-provider";
+import OpenAI from "openai";
+import {
+  getProviderModelId,
+  getFallbackModelSlugs,
+  tryGetAIClientForModel,
+  getProviderName,
+} from "./ai-provider";
 import { PLANNING_MODEL } from "./constants";
 import {
   getMainCodingPrompt,
@@ -108,9 +114,6 @@ export async function generateApp(
     throw new Error(`Unsupported archMode: ${archMode}`);
   }
 
-  const resolvedModelId = getProviderModelId(model);
-  const ai = getAIClientForModel(model);
-  const planningModelId = getProviderModelId(PLANNING_MODEL);
   const startedAt = performance.now();
 
   // archMode "none" mirrors the production default (quality "low"): the raw
@@ -122,28 +125,62 @@ export async function generateApp(
   // user prompt is the user message) but adds a short instruction to plan
   // internally while keeping the response code-only.
   if (archMode === "separate") {
-    const planAi = getAIClientForModel(PLANNING_MODEL);
-    const planResponse = await planAi.chat.completions.create({
-      model: planningModelId,
-      messages: [
-        {
-          role: "system",
-          content: softwareArchitectPrompt,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature,
-      max_tokens: 3000,
-    });
-    plan = planResponse.choices[0].message?.content ?? prompt;
-    planUsage = planResponse.usage ?? undefined;
+    // Planning step — try with fallback like the streaming route
+    const planModels = getFallbackModelSlugs(PLANNING_MODEL);
+    let planDone = false;
+    for (const planSlug of planModels) {
+      const planAi = tryGetAIClientForModel(planSlug);
+      if (!planAi) continue;
+      const planningModelId = getProviderModelId(planSlug);
+      try {
+        const planResponse = await planAi.chat.completions.create({
+          model: planningModelId,
+          messages: [
+            { role: "system", content: softwareArchitectPrompt },
+            { role: "user", content: prompt },
+          ],
+          temperature,
+          max_tokens: 3000,
+        });
+        plan = planResponse.choices[0].message?.content ?? prompt;
+        planUsage = planResponse.usage ?? undefined;
+        planDone = true;
+        break;
+      } catch (err) {
+        console.error(`[generation] Planning model ${planSlug} failed:`, err);
+        continue;
+      }
+    }
+    if (!planDone) {
+      console.error("[generation] All planning models failed, using raw prompt");
+    }
   }
 
+  // Coding step — try with fallback like the streaming route
   let firstTokenMs = 0;
   const codingStartedAt = performance.now();
+
+  const codingModels = getFallbackModelSlugs(model);
+  let ai: OpenAI | undefined;
+  let resolvedModelId = "";
+  let usedModelSlug = "";
+
+  for (const modelSlug of codingModels) {
+    const client = tryGetAIClientForModel(modelSlug);
+    if (!client) continue;
+    ai = client;
+    resolvedModelId = getProviderModelId(modelSlug);
+    usedModelSlug = modelSlug;
+    break;
+  }
+  if (!ai) {
+    throw new Error(
+      `No AI provider available for model "${model}". Tried: ${codingModels.join(", ")}`,
+    );
+  }
+  console.error(
+    `[generation] Using ${getProviderName(usedModelSlug)} (${resolvedModelId}) for coding`,
+  );
 
   // Resolve the minimal-prompt variant (if any) for the current promptVersion.
   // `minimal-v1` uses the caller's config as-is (no variant); `minimal-v2`,
@@ -222,16 +259,30 @@ export async function generateApp(
     systemPrompt += "\n\n" + INLINE_PLAN_INSTRUCTION;
   }
 
-  const stream = ai.chat.completions.stream({
-    model: resolvedModelId,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: plan },
-    ],
-    temperature,
-    max_tokens: maxTokens,
-    stream_options: { include_usage: true },
-  });
+  // Try creating the stream — if stream_options is rejected, retry without
+  let stream;
+  try {
+    stream = ai.chat.completions.stream({
+      model: resolvedModelId,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: plan },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+      stream_options: { include_usage: true },
+    });
+  } catch {
+    stream = ai.chat.completions.stream({
+      model: resolvedModelId,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: plan },
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    });
+  }
 
   stream.on("content", (delta) => {
     if (!firstTokenMs && delta.length > 0) {

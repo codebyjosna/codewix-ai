@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     CEREBRAS_API_KEY: process.env.CEREBRAS_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    // BRAINTRUST_API_KEY / BRAINTRUST_PROJECT omitted — not set in Amplify.
+    // Braintrust code already handles missing keys gracefully (returns undefined).
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   outputFileTracingExcludes: {
     "*": [
