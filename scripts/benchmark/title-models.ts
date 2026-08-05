@@ -1,4 +1,4 @@
-// Benchmark NVIDIA NIM chat models for the background "short chat title" job.
+// Benchmark Groq chat models for the background "short chat title" job.
 //
 // Probes chat/completions for each model in a static, verified NIM model list
 // (see https://docs.api.nvidia.com/nim/reference/llm-apis) with a deliberately
@@ -9,13 +9,13 @@
 //   node --env-file=.env scripts/benchmark/title-models.ts --limit 40 --reps 2
 //   node --env-file=.env scripts/benchmark/title-models.ts --all --reps 3
 
-const API_BASE = "https://integrate.api.nvidia.com/v1";
+const API_BASE = "https://api.groq.com/openai/v1";
 const COMPLETIONS_URL = `${API_BASE}/chat/completions`;
 
-const API_KEY = process.env.NVIDIA_API_KEY;
+const API_KEY = process.env.GROQ_API_KEY;
 if (!API_KEY) {
   console.error(
-    "Missing NVIDIA_API_KEY. Run with: node --env-file=.env scripts/benchmark/title-models.ts",
+    "Missing GROQ_API_KEY. Run with: node --env-file=.env scripts/benchmark/title-models.ts",
   );
   process.exit(2);
 }

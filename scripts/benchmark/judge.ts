@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { getNvidiaClient } from "../../lib/nvidia";
+import { getAIClient } from "../../lib/nvidia";
 
 export type JudgeResult = {
   model: string;
@@ -29,7 +29,7 @@ export async function judgeScreenshot(options: {
   request?: JudgeRequest;
 }): Promise<JudgeResult> {
   const screenshot = await fs.readFile(options.screenshotPath, "base64");
-  const request = options.request ?? createNvidiaJudgeRequest();
+  const request = options.request ?? createGroqJudgeRequest();
   const maxAttempts = options.maxAttempts ?? 3;
   let lastError: unknown;
 
@@ -131,33 +131,25 @@ function parseJsonObject(content: string): any {
   }
 }
 
-function createNvidiaJudgeRequest(): JudgeRequest {
-  const nvidia = getNvidiaClient();
+function createGroqJudgeRequest(): JudgeRequest {
+  const ai = getAIClient();
 
   return {
     create: async (options) => {
-      const response = await nvidia.chat.completions.create({
-        model: options.model,
+      // NOTE: Groq does not support vision/image inputs.
+      // The judge prompt falls back to text-only using the prompt + expected behavior.
+      // For proper visual judging, add a vision provider (e.g. Google Gemini).
+      const response = await ai.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
         temperature: 0,
         max_tokens: 1200,
         messages: [
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: buildJudgePrompt(
-                  options.prompt,
-                  options.expectedBehavior,
-                ),
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/png;base64,${options.screenshotBase64}`,
-                },
-              },
-            ],
+            content: buildJudgePrompt(
+              options.prompt,
+              options.expectedBehavior,
+            ),
           },
         ],
       });

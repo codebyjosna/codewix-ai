@@ -1,8 +1,6 @@
 import "server-only";
 import { getPrisma } from "@/lib/prisma";
-import { screenshotToCodePrompt } from "@/lib/prompts";
 import { buildProductionCodingPrompt } from "@/lib/prompt-config";
-import { getNvidiaClient } from "@/lib/nvidia";
 import { resolveModel } from "@/lib/constants";
 import { createLocalChatTitle } from "@/lib/chat-title";
 import { serializeBraintrustError } from "@/lib/braintrust";
@@ -19,36 +17,20 @@ export function createRandomId(size = 16) {
 
 async function describeScreenshot(screenshotUrl: string, span?: Span) {
   const startedAt = performance.now();
-  const screenshotModel = "meta/llama-3.2-11b-vision-instruct";
-  const nvidia = getNvidiaClient();
-  const screenshotResponse = await nvidia.chat.completions.create({
-    model: screenshotModel,
-    temperature: 0.4,
-    max_tokens: 1000,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: screenshotToCodePrompt },
-          { type: "image_url", image_url: { url: screenshotUrl } },
-        ],
-      },
-    ],
-  });
-
-  const description = screenshotResponse.choices[0].message?.content ?? undefined;
-  const usage = screenshotResponse.usage ?? undefined;
+  // NOTE: Groq does not offer vision models. Screenshot-to-code description
+  // is skipped — the user's text prompt is used as-is.
+  // If you add a vision provider later (e.g. Google Gemini, NVIDIA free tier),
+  // swap this function to call that provider's vision endpoint.
+  console.warn(
+    "Screenshot processing skipped: Groq does not support vision models.",
+  );
   span?.log({
-    output: description,
-    metadata: { model: screenshotModel, provider: "nvidia" },
-    metrics: {
-      duration_ms: performance.now() - startedAt,
-      prompt_tokens: usage?.prompt_tokens ?? 0,
-      completion_tokens: usage?.completion_tokens ?? 0,
-      tokens: usage?.total_tokens ?? 0,
+    metadata: {
+      screenshotSkipped: true,
+      reason: "groq-no-vision",
     },
   });
-  return description;
+  return undefined;
 }
 
 // Shared by /api/create-chat and /api/create-project so both entry points
@@ -81,7 +63,7 @@ export async function createChatRecord({
               type: "llm",
               event: {
                 input: { prompt, hasScreenshot: true },
-                metadata: { chatId, route, provider: "nvidia" },
+                metadata: { chatId, route, provider: "groq" },
               },
             },
           )

@@ -1,10 +1,8 @@
-// Local smoke-test: are the models on the homepage still served by NVIDIA
-// NIM's OpenAI-compatible inference API? Pings each model with a tiny
+// Local smoke-test: are the models on the homepage still served by Groq's
+// OpenAI-compatible inference API? Pings each model with a tiny
 // completion request and cross-checks the /v1/models catalog, so we can tell
 // apart:
 //   - WORKS          → 200, call succeeds
-//   - NON_SERVERLESS → model exists but requires a dedicated endpoint
-//                      ("Unable to access non-serverless model …")
 //   - DEPRECATED     → removed from the catalog / explicit deprecation / 404
 //   - (transient)    → AUTH_ERROR / RATE_LIMITED / SERVER_ERROR / TIMEOUT / NETWORK
 //
@@ -14,17 +12,17 @@
 
 import { MODELS, resolveModel } from "../lib/constants.ts";
 
-const API_BASE = "https://integrate.api.nvidia.com/v1";
+const API_BASE = "https://api.groq.com/openai/v1";
 const COMPLETIONS_URL = `${API_BASE}/chat/completions`;
 const MODELS_URL = `${API_BASE}/models`;
 const PER_REQUEST_TIMEOUT_MS = 45_000;
 const CONCURRENCY = 5;
 const RETRIES = 1; // retry transient failures once
 
-const API_KEY = process.env.NVIDIA_API_KEY;
+const API_KEY = process.env.GROQ_API_KEY;
 if (!API_KEY) {
   console.error(
-    "✗ NVIDIA_API_KEY not found. Run with: node --env-file=.env scripts/check-models.ts",
+    "✗ GROQ_API_KEY not found. Run with: node --env-file=.env scripts/check-models.ts",
   );
   process.exit(2);
 }

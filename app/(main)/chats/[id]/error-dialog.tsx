@@ -45,6 +45,7 @@ function categorizeError(message: string): ErrorCategory {
     m.includes("502") ||
     m.includes("503") ||
     m.includes("server error") ||
+    m.includes("groq") ||
     m.includes("nvidia") ||
     m.includes("provider")
   ) {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getNvidiaClient } from "@/lib/nvidia";
+import { getAIClient } from "@/lib/nvidia";
 import { resolveModel } from "@/lib/constants";
 import { getPrisma } from "@/lib/prisma";
 import {
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
     messages = [messages[0], messages[1], messages[2], ...messages.slice(-7)];
   }
 
-  const nvidia = getNvidiaClient();
+  const ai = getAIClient();
   const resolvedModel = resolveModel(model);
   const temperature = 0.4;
   // 20000, up from the benchmarked 13000: chat USzt_maT7friospM hit the 13k
@@ -186,7 +186,7 @@ export async function POST(req: Request) {
         requestedModel: model,
         resolvedModel,
         model: resolvedModel,
-        provider: "nvidia",
+        provider: "groq",
         messageCount: inputMessages.length,
         promptChars,
         temperature,
@@ -195,9 +195,9 @@ export async function POST(req: Request) {
     },
   });
 
-  let stream: ReturnType<typeof nvidia.chat.completions.stream>;
+  let stream: ReturnType<typeof ai.chat.completions.stream>;
   try {
-    stream = nvidia.chat.completions.stream({
+    stream = ai.chat.completions.stream({
       model: resolvedModel,
       messages: inputMessages,
       temperature,

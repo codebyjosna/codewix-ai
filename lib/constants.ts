@@ -1,46 +1,55 @@
-// Legacy Together AI model IDs → current NVIDIA NIM replacements (verified
-// against https://docs.api.nvidia.com/nim/reference/llm-apis). resolveModel()
-// maps these so existing chats/DB rows that reference an old Together ID
-// keep working after the Together AI → NVIDIA NIM migration.
+// Groq model ID aliases — maps old NVIDIA/Together model IDs to their Groq
+// equivalents so existing DB rows referencing an old ID keep working after the
+// NVIDIA → Groq migration.
 export const MODEL_ALIASES: Record<string, string> = {
-  // Historical Together aliases (pre-migration), flattened to their NIM target.
-  "zai-org/GLM-4.6": "z-ai/glm-5.2",
-  "zai-org/GLM-5": "z-ai/glm-5.2",
-  "zai-org/GLM-5.1": "z-ai/glm-5.2",
-  "Qwen/Qwen2.5-Coder-32B-Instruct": "z-ai/glm-5.2",
-  "MiniMaxAI/MiniMax-M2.5": "minimaxai/minimax-m2.7",
-  "MiniMaxAI/MiniMax-M2.7": "minimaxai/minimax-m2.7",
-  "moonshotai/Kimi-K2.5": "moonshotai/kimi-k2-instruct",
-  "moonshotai/Kimi-K2-Instruct-0905": "moonshotai/kimi-k2-instruct",
-  "deepseek-ai/DeepSeek-V3.1": "moonshotai/kimi-k2-instruct",
-  "Qwen/Qwen3-Coder-Next-FP8": "qwen/qwen3-coder-480b-a35b-instruct",
-  "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8":
-    "qwen/qwen3-coder-480b-a35b-instruct",
+  // Legacy NVIDIA NIM model IDs → Groq replacements
+  "z-ai/glm-5.2": "llama-3.3-70b-versatile",
+  "zai-org/GLM-4.6": "llama-3.3-70b-versatile",
+  "zai-org/GLM-5": "llama-3.3-70b-versatile",
+  "zai-org/GLM-5.1": "llama-3.3-70b-versatile",
+  "zai-org/GLM-5.2": "llama-3.3-70b-versatile",
 
-  // Together model IDs that used to be the MODELS list's "current" values,
-  // now redirected to their NVIDIA NIM equivalent (MODELS below already uses
-  // the NIM id directly for new chats; these keep old DB rows working).
-  "zai-org/GLM-5.2": "z-ai/glm-5.2",
-  "moonshotai/Kimi-K2.7-Code": "moonshotai/kimi-k2-instruct",
-  "moonshotai/Kimi-K2.6": "moonshotai/kimi-k2-thinking",
-  "Qwen/Qwen3.7-Max": "qwen/qwen3-coder-480b-a35b-instruct",
-  "MiniMaxAI/MiniMax-M3": "minimaxai/minimax-m2.7",
-  "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8":
-    "qwen/qwen3-coder-480b-a35b-instruct",
-  "deepseek-ai/DeepSeek-V3": "deepseek-ai/deepseek-v4-pro",
-  "Qwen/Qwen3-235B-A22B-Instruct-2507-tput":
-    "qwen/qwen3-coder-480b-a35b-instruct",
-  "meta-llama/Llama-3.3-70B-Instruct-Turbo": "meta/llama-3.3-70b-instruct",
+  "moonshotai/kimi-k2-instruct": "qwen/qwen3.6-27b",
+  "moonshotai/kimi-k2-thinking": "llama-3.3-70b-versatile",
+  "moonshotai/Kimi-K2.5": "qwen/qwen3.6-27b",
+  "moonshotai/Kimi-K2-Instruct-0905": "qwen/qwen3.6-27b",
+  "moonshotai/Kimi-K2.7-Code": "qwen/qwen3.6-27b",
+  "moonshotai/Kimi-K2.6": "llama-3.3-70b-versatile",
+
+  "nvidia/nemotron-3-ultra-550b-a55b": "llama-3.3-70b-versatile",
+
+  "qwen/qwen3-coder-480b-a35b-instruct": "llama-3.3-70b-versatile",
+  "Qwen/Qwen3-Coder-Next-FP8": "llama-3.3-70b-versatile",
+  "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8": "llama-3.3-70b-versatile",
+  "Qwen/Qwen2.5-Coder-32B-Instruct": "qwen/qwen3.6-27b",
+
+  "minimaxai/minimax-m2.7": "qwen/qwen3.6-27b",
+  "MiniMaxAI/MiniMax-M2.5": "qwen/qwen3.6-27b",
+  "MiniMaxAI/MiniMax-M2.7": "qwen/qwen3.6-27b",
+  "MiniMaxAI/MiniMax-M3": "qwen/qwen3.6-27b",
+  "Qwen/Qwen3.7-Max": "llama-3.3-70b-versatile",
+  "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8": "llama-3.3-70b-versatile",
+  "Qwen/Qwen3-235B-A22B-Instruct-2507-tput": "llama-3.3-70b-versatile",
+
+  "deepseek-ai/DeepSeek-V3": "qwen/qwen3.6-27b",
+  "deepseek-ai/DeepSeek-V3.1": "qwen/qwen3.6-27b",
+  "deepseek-ai/deepseek-v4-pro": "llama-3.3-70b-versatile",
+
+  "meta/llama-3.3-70b-instruct": "llama-3.3-70b-versatile",
+  "meta-llama/Llama-3.3-70B-Instruct-Turbo": "llama-3.3-70b-versatile",
+
+  // OpenAI open-source models on Groq
+  "openai/gpt-oss-120b": "llama-3.3-70b-versatile",
+  "openai/gpt-oss-20b": "qwen/qwen3.6-27b",
 };
 
 export function resolveModel(model: string): string {
   return MODEL_ALIASES[model] ?? model;
 }
 
-// Model used for the high-quality "software architect" plan step in
-// create-chat. Must support non-streaming completions (create-chat calls it
-// with stream=false).
-export const PLANNING_MODEL = "qwen/qwen3-coder-480b-a35b-instruct";
+// Model used for the "software architect" plan step in create-chat.
+// Uses the best available Groq model for non-streaming completions.
+export const PLANNING_MODEL = "llama-3.3-70b-versatile";
 
 export type ModelOption = {
   label: string;
@@ -50,45 +59,31 @@ export type ModelOption = {
   note?: string;
 };
 
-// Selectable (non-hidden) models are the fast, reliable NVIDIA NIM set plus
-// Nemotron 3 Ultra. The hidden entries are kept so existing chats and
-// MODEL_ALIASES keep resolving them; all model ids below are verified NVIDIA
-// NIM model ids (https://docs.api.nvidia.com/nim/reference/llm-apis).
+// Selectable (non-hidden) models are the two best Groq models for code gen.
+// Hidden entries are kept so existing DB rows and MODEL_ALIASES keep resolving.
 export const MODELS: ModelOption[] = [
   {
-    label: "GLM 5.2",
-    value: "z-ai/glm-5.2",
-  },
-  {
-    label: "Kimi K2 Instruct",
-    value: "moonshotai/kimi-k2-instruct",
-  },
-  {
-    label: "Kimi K2 Thinking",
-    value: "moonshotai/kimi-k2-thinking",
-  },
-  {
-    label: "Nemotron 3 Ultra",
-    value: "nvidia/nemotron-3-ultra-550b-a55b",
-  },
-  {
-    label: "Qwen3 Coder 480B",
-    value: "qwen/qwen3-coder-480b-a35b-instruct",
-    hidden: true,
-  },
-  {
-    label: "MiniMax M2.7",
-    value: "minimaxai/minimax-m2.7",
-    hidden: true,
-  },
-  {
-    label: "DeepSeek V4 Pro",
-    value: "deepseek-ai/deepseek-v4-pro",
-    hidden: true,
-  },
-  {
     label: "Llama 3.3 70B",
-    value: "meta/llama-3.3-70b-instruct",
+    value: "llama-3.3-70b-versatile",
+  },
+  {
+    label: "Qwen 3.6 27B",
+    value: "qwen/qwen3.6-27b",
+    note: "faster",
+  },
+  {
+    label: "GPT-OSS 120B",
+    value: "openai/gpt-oss-120b",
+    hidden: true,
+  },
+  {
+    label: "GPT-OSS 20B",
+    value: "openai/gpt-oss-20b",
+    hidden: true,
+  },
+  {
+    label: "Llama 3.1 8B",
+    value: "llama-3.1-8b-instant",
     hidden: true,
   },
 ];

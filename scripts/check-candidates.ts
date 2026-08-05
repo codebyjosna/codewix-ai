@@ -1,20 +1,18 @@
-// Tests the NEW models we want to adopt, to confirm they actually work on
-// NVIDIA NIM's inference API and (for the screenshot→code use case) accept
-// image input. Each candidate is paired with the old model it would replace.
+// Tests the models available on Groq's API, to confirm they actually work.
 // Run:
 //
 //   node --env-file=.env scripts/check-candidates.ts
 
 export {};
 
-const COMPLETIONS_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
+const COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
 const PER_REQUEST_TIMEOUT_MS = 45_000;
 const CONCURRENCY = 4;
 
-const API_KEY = process.env.NVIDIA_API_KEY;
+const API_KEY = process.env.GROQ_API_KEY;
 if (!API_KEY) {
   console.error(
-    "✗ NVIDIA_API_KEY not found. Run with: node --env-file=.env scripts/check-candidates.ts",
+    "✗ GROQ_API_KEY not found. Run with: node --env-file=.env scripts/check-candidates.ts",
   );
   process.exit(2);
 }

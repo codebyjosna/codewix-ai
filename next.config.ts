@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
     AUTH_SECRET: process.env.AUTH_SECRET,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
-    NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
   },
   outputFileTracingExcludes: {
     "*": [
