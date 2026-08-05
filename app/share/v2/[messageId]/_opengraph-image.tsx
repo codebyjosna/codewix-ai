@@ -14,9 +14,9 @@ export const contentType = "image/png";
 export default async function Image({
   params,
 }: {
-  params: { messageId: string };
+  params: Promise<{ messageId: string }>;
 }) {
-  let messageId = params.messageId;
+  const { messageId } = await params;
   const prisma = getPrisma();
   let message = await prisma.message.findUnique({
     where: {
@@ -34,7 +34,7 @@ export default async function Image({
 
   let title = message
     ? message.chat.title
-    : "An app generated on LlamaCoder.io";
+    : "An app generated on Codewix";
 
   return new ImageResponse(
     (

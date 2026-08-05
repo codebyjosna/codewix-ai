@@ -1,4 +1,4 @@
-import { getAIClient, resolveModel, resolveModelSlug, getAIClientForModel, getProviderModelId } from "./nvidia";
+import { getAIClientForModel, getProviderModelId } from "./ai-provider";
 import { PLANNING_MODEL } from "./constants";
 import {
   getMainCodingPrompt,

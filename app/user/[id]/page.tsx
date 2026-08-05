@@ -44,15 +44,17 @@ export default async function UserHomePage({
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <div
+            <Link
               key={project.id}
-              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+              href={project.chatId ? `/chats/${project.chatId}` : `#`}
+              className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-gray-300"
             >
               <h2 className="font-medium">{project.name}</h2>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 line-clamp-2 text-sm text-gray-500">{project.description}</p>
+              <p className="mt-2 text-xs text-gray-400">
                 Updated {project.updatedAt.toLocaleDateString()}
               </p>
-            </div>
+            </Link>
           ))}
         </div>
       )}

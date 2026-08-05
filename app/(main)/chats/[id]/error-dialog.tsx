@@ -46,7 +46,10 @@ function categorizeError(message: string): ErrorCategory {
     m.includes("503") ||
     m.includes("server error") ||
     m.includes("groq") ||
-    m.includes("nvidia") ||
+    m.includes("gemini") ||
+    m.includes("google") ||
+    m.includes("cerebras") ||
+    m.includes("openrouter") ||
     m.includes("provider")
   ) {
     return "api";
@@ -97,7 +100,7 @@ const CATEGORY_META: Record<
     color: "#991b1b",
     bgColor: "#fee2e2",
     borderColor: "#fca5a5",
-    hint: "The AI provider (NVIDIA NIM) rejected the request — this could be an invalid API key, rate limit, or server-side issue. Try again in a moment, or contact support if it persists.",
+    hint: "The AI provider rejected the request — this could be an invalid API key, rate limit, or server-side issue. Try again in a moment, or contact support if it persists."
   },
   model: {
     label: "Model Not Responding",

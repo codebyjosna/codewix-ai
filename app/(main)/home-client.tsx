@@ -82,7 +82,11 @@ export default function HomeClient({
         messageId: result.lastMessageId,
         model: result.model,
       }),
-    }).then((res) => {
+    }).then(async (res) => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? `Request failed (HTTP ${res.status})`);
+      }
       if (!res.body) {
         throw new Error("No body on response");
       }

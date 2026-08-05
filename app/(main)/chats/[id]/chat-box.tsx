@@ -201,7 +201,11 @@ export default function ChatBox({
           messageId: message.id,
           model: selectedModel,
         }),
-      }).then((res) => {
+      }).then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error ?? `Request failed (HTTP ${res.status})`);
+        }
         if (!res.body) {
           throw new Error("No body on response");
         }
@@ -247,7 +251,7 @@ export default function ChatBox({
 
       <form
         className="relative flex w-full"
-        action={handleSubmit}
+        onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
       >
         <fieldset className="w-full">
           <div className="relative flex flex-col rounded-lg border border-gray-300 bg-white">

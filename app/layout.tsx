@@ -4,8 +4,8 @@ import "./globals.css";
 
 let title = "Codewix – AI App Generator";
 let description = "Turn your idea into an app with Codewix.";
-let url = "https://llamacoder.io/";
-let ogimage = "https://llamacoder.io/og-image.png";
+let url = "https://codewix.in/";
+let ogimage = "https://codewix.in/og-image.png";
 let sitename = "Codewix";
 
 export const metadata: Metadata = {
@@ -44,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
-        <PlausibleProvider domain="llamacoder.io" />
+        <PlausibleProvider domain="codewix.in" />
       </head>
 
       {children}

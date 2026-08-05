@@ -83,7 +83,7 @@ export async function createChatRecord({
   }
 
   const userMessage = fullScreenshotDescription
-    ? prompt + "RECREATE THIS APP AS CLOSELY AS POSSIBLE: " + fullScreenshotDescription
+    ? prompt + "\n\nRECREATE THIS APP AS CLOSELY AS POSSIBLE: " + fullScreenshotDescription
     : prompt;
 
   const prisma = getPrisma();
