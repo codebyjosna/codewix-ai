@@ -13,7 +13,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import ProjectCreatingOverlay from "@/components/project-creating-overlay";
 
@@ -216,7 +215,11 @@ export default function ProjectCreateDialog({
                 disabled={optionsLoading || types.length === 0}
               >
                 <SelectTrigger className="w-full border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                  <SelectValue placeholder="Select a project type" />
+                  <span className="flex flex-1 text-left">
+                    {projectTypeId
+                      ? types.find((t) => t.id === projectTypeId)?.name ?? "Select a project type"
+                      : "Select a project type"}
+                  </span>
                 </SelectTrigger>
                 <SelectContent className="w-[--anchor-width] bg-white p-1">
                   {types.map((t) => (
@@ -305,7 +308,11 @@ export default function ProjectCreateDialog({
                 disabled={optionsLoading || visibilities.length === 0}
               >
                 <SelectTrigger className="w-full border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                  <SelectValue placeholder="Select visibility" />
+                  <span className="flex flex-1 text-left">
+                    {visibilityId
+                      ? visibilities.find((v) => v.id === visibilityId)?.name ?? "Select visibility"
+                      : "Select visibility"}
+                  </span>
                 </SelectTrigger>
                 <SelectContent className="w-[--anchor-width] bg-white p-1">
                   {visibilities.map((v) => (
