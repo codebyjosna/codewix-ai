@@ -161,7 +161,6 @@ export async function generateApp(
   // streaming failures fall through to the next provider (the previous code
   // only checked for available API keys, then broke immediately).
   let firstTokenMs = 0;
-  const codingStartedAt = performance.now();
 
   const codingModels = getFallbackModelSlugs(model);
   const codingErrors: string[] = [];
@@ -373,15 +372,4 @@ async function tryCodingStream(
   }));
 
   return { files, rawText, firstTokenMs };
-}
-
-function addUsage(
-  left: TokenUsage | undefined,
-  right: TokenUsage | undefined,
-): Required<TokenUsage> {
-  return {
-    prompt_tokens: (left?.prompt_tokens ?? 0) + (right?.prompt_tokens ?? 0),
-    completion_tokens:
-      (left?.completion_tokens ?? 0) + (right?.completion_tokens ?? 0),
-  };
 }
