@@ -18,26 +18,31 @@ export async function createMessage(
   }
 
   const prisma = getPrisma();
+
+  // Ownership: prefer Chat.userId (direct); fall back to Project.chatId -> userId.
   const chat = await prisma.chat.findUnique({
     where: { id: chatId },
-    include: { messages: true },
+    select: { userId: true },
   });
   if (!chat) notFound();
 
-  // Verify the user owns this chat (via the project record) before
-  // allowing message creation.  Prevents cross-user message injection.
-  const owningProject = await prisma.project.findFirst({
-    where: { chatId, userId },
-    select: { id: true },
-  });
-  if (!owningProject) {
-    // If no project links this chat to the user, deny access.
-    // (All production chats are created via /api/create-project which
-    // creates the project record.)
+  const ownsViaChat = chat.userId === userId;
+  const ownsViaProject =
+    !ownsViaChat &&
+    (await prisma.project.findFirst({
+      where: { chatId, userId },
+      select: { id: true },
+    }));
+  if (!ownsViaChat && !ownsViaProject) {
     throw new Error("Chat not found");
   }
 
-  const maxPosition = Math.max(...chat.messages.map((m) => m.position));
+  // Get the max position efficiently (don't fetch all messages).
+  const maxResult = await prisma.message.aggregate({
+    where: { chatId },
+    _max: { position: true },
+  });
+  const maxPosition = maxResult._max.position ?? 0;
 
   const newMessage = await prisma.message.create({
     data: {

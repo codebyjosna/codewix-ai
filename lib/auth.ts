@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
+import { randomInt } from "node:crypto";
 import { getPrisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "session";
@@ -109,7 +110,9 @@ export async function verifyResetToken(
 }
 
 function generateOtpCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // Use a cryptographically secure random integer (not Math.random).
+  // randomInt(min, max) returns an integer in [min, max).
+  return String(randomInt(100000, 1000000));
 }
 
 export type OtpPurpose = "signup" | "reset";
@@ -135,6 +138,15 @@ export async function issueOtp(email: string, purpose: OtpPurpose) {
   }
 
   const code = generateOtpCode();
+
+  // Invalidate all prior unused OTPs for this email+purpose so only the
+  // newest code is valid. Without this, every code issued in the last 10
+  // minutes remains independently valid (audit finding M2).
+  await prisma.otpCode.updateMany({
+    where: { email: normalizedEmail, purpose, used: false },
+    data: { used: true },
+  });
+
   await prisma.otpCode.create({
     data: {
       email: normalizedEmail,

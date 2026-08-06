@@ -14,7 +14,7 @@ export async function GET(request: Request) {
           backgroundPosition: "center center",
           fontSize: 50,
           color: "black",
-          background: "white",
+          backgroundColor: "white",
           width: "100%",
           height: "100%",
           padding: "50px 200px",

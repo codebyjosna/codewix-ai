@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAIClientForModel, getProviderModelId, getProviderName } from "@/lib/ai-provider";
 import { getPrisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/auth";
 import {
   cleanGeneratedChatTitle,
   createLocalChatTitle,
@@ -18,6 +19,15 @@ export async function POST(request: NextRequest) {
   const logger = getBraintrustLogger();
 
   try {
+    // Auth: require a signed-in user.
+    const userId = await getSessionUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Sign in required" },
+        { status: 401 },
+      );
+    }
+
     const body = await request.json().catch(() => null);
     const chatId = body?.chatId;
     if (typeof chatId !== "string" || !chatId) {
@@ -82,6 +92,23 @@ export async function POST(request: NextRequest) {
         },
         new Error("Chat not found"),
       );
+      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    }
+
+    // Ownership: verify the caller owns this chat.
+    // Prefer Chat.userId (direct); fall back to Project.chatId -> userId.
+    const chatWithOwner = await prisma.chat.findUnique({
+      where: { id: chat.id },
+      select: { userId: true },
+    });
+    const ownsViaChat = chatWithOwner?.userId === userId;
+    const ownsViaProject =
+      !ownsViaChat &&
+      (await prisma.project.findFirst({
+        where: { chatId: chat.id, userId },
+        select: { id: true },
+      }));
+    if (!ownsViaChat && !ownsViaProject) {
       return NextResponse.json({ error: "Chat not found" }, { status: 404 });
     }
 

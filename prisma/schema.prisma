@@ -29,10 +29,15 @@ model Chat {
   braintrustParent  String?
   llamaCoderVersion String    @default("v2")
   shadcn            Boolean
+  // userId is backfilled from Project.chatId -> Project.userId for existing
+  // chats, and set directly on creation for new chats. Nullable for backward
+  // compat with chats that have no associated Project.
+  userId            String?
   messages          Message[]
   createdAt         DateTime  @default(now())
 
   @@index([createdAt])
+  @@index([userId])
   @@schema("codewix_ai")
 }
 

@@ -11,6 +11,7 @@ import {
   resolveModelSlug,
 } from "@/lib/ai-provider";
 import { getPrisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/auth";
 import {
   flushBraintrustSpan,
   logBraintrustFailure,
@@ -77,6 +78,15 @@ function tryCreateStream(
 async function handleStreamRequest(req: Request) {
   const prisma = getPrisma();
 
+  // Auth: require a signed-in user.
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return new Response(JSON.stringify({ error: "Sign in required" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const parsed = requestSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     await logBraintrustFailure(
@@ -141,6 +151,24 @@ async function handleStreamRequest(req: Request) {
       },
       new Error("Message not found"),
     );
+    return new Response(null, { status: 404 });
+  }
+
+  // Ownership: verify the caller owns the chat this message belongs to.
+  // Prefer Chat.userId (direct); fall back to Project.chatId -> userId for
+  // legacy chats that haven't been backfilled yet.
+  const chat = await prisma.chat.findUnique({
+    where: { id: message.chatId },
+    select: { userId: true },
+  });
+  const ownsViaChat = chat?.userId === userId;
+  const ownsViaProject =
+    !ownsViaChat &&
+    (await prisma.project.findFirst({
+      where: { chatId: message.chatId, userId },
+      select: { id: true },
+    }));
+  if (!ownsViaChat && !ownsViaProject) {
     return new Response(null, { status: 404 });
   }
 

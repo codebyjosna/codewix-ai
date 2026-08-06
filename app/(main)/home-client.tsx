@@ -12,6 +12,7 @@ import { Context } from "./providers";
 import SiteHeader from "@/components/site-header";
 import { useS3Upload } from "next-s3-upload";
 import UploadIcon from "@/components/icons/upload-icon";
+import { toast } from "@/hooks/use-toast";
 import { SUGGESTED_PROMPTS } from "@/lib/constants";
 import { useCurrentUser, type CurrentUser } from "@/hooks/use-current-user";
 import {
@@ -101,9 +102,19 @@ export default function HomeClient({
     if (prompt.length === 0) setPrompt("Build this");
     setScreenshotLoading(true);
     let file = event.target.files[0];
-    const { url } = await uploadToS3(file);
-    setScreenshotUrl(url);
-    setScreenshotLoading(false);
+    try {
+      const { url } = await uploadToS3(file);
+      setScreenshotUrl(url);
+    } catch (err) {
+      console.error("Screenshot upload failed:", err);
+      toast({
+        title: "Upload failed",
+        description: "Could not upload the screenshot. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setScreenshotLoading(false);
+    }
   };
 
   const textareaResizePrompt = useMemo(

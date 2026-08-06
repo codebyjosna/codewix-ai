@@ -84,6 +84,9 @@ export default function PageClient({ chat }: { chat: Chat }) {
   // has moved on. Without this, a stopped generation keeps overwriting
   // streamText in the background.
   const activeStreamRef = useRef<ReadableStream<Uint8Array> | null>(null);
+  // Watchdog cancel function for the in-flight stream — stored so the
+  // useEffect cleanup can cancel it on unmount.
+  const cancelWatchdogRef = useRef<(() => void) | null>(null);
   // Track whether at least one content chunk has arrived, so the idle
   // timeout can tell "model is still thinking, no output yet" from
   // "stream genuinely went silent mid-generation".
@@ -267,6 +270,7 @@ export default function PageClient({ chat }: { chat: Chat }) {
           resetStreamState();
         },
       );
+      cancelWatchdogRef.current = cancelWatchdog;
 
       let stream: ReadableStream<Uint8Array> | undefined;
       try {
@@ -402,6 +406,26 @@ export default function PageClient({ chat }: { chat: Chat }) {
     }
 
     f();
+
+    // Cleanup on unmount: cancel watchdog, abort controller, cancel stream.
+    // Prevents DB writes to stale chats + resource leaks when the user
+    // navigates away mid-generation.
+    return () => {
+      cancelWatchdogRef.current?.();
+      cancelWatchdogRef.current = null;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      if (activeStreamRef.current) {
+        try {
+          activeStreamRef.current.cancel();
+        } catch {
+          // already cancelled
+        }
+        activeStreamRef.current = null;
+      }
+    };
   }, [chat.id, router, streamPromise, context]);
 
   const submitFix = useCallback(
