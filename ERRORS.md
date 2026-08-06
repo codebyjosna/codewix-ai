@@ -471,8 +471,9 @@ All 22 previously-unfixed items from Round 2 are now FIXED (commit pending).
 ### L5 — `describeScreenshot` hardcoded `provider: "groq"` [LOW] — ✅ FIXED
 - `lib/create-chat.ts`: now uses `resolveModelSlug(model).provider`.
 
-### L6 — `lib/ai-provider.ts` lacks `"server-only"` [LOW] — ✅ FIXED
-- Added `import "server-only";` at the top.
+### L6 — `lib/ai-provider.ts` lacks `"server-only"` [LOW] — ⚠️ REVERTED (not applicable)
+- Initially added `import "server-only";` but it broke `next build` — `ai-provider.ts` exports both server-only code (`getAIClientForModel`, `getProviderApiKey`) AND client-safe code (`MODEL_REGISTRY`, `getAllModels`, `getProviderModelId`), and `lib/constants.ts` re-exports the client-safe functions for client components like `home-client.tsx`.
+- Reverted in commit `4507ec4`. The audit's own note acknowledged "tree-shaking should remove the OpenAI import and getProviderApiKey from the client bundle." A proper fix would require splitting the file into `lib/model-registry.ts` (client-safe) + `lib/ai-provider.ts` (server-only), but that's a larger refactor not warranted for LOW severity.
 
 ### L7 — `getFilesFromMessage` unsafe `any[]` cast [LOW] — ✅ FIXED
 - `lib/utils.ts`: replaced `as any[]` with shape-validating loop that checks `path`/`code` are strings before pushing.
