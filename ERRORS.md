@@ -148,3 +148,261 @@
 - All server-only env vars in `next.config.ts` are present in Amplify
 - `BRAINTRUST_API_KEY`/`BRAINTRUST_PROJECT` removed from env list (not set in Amplify)
 - `NEXT_PUBLIC_APP_URL` added to env list and set in Amplify
+
+---
+
+## ROUND 2 AUDIT (2026-08-07) — Backend (Supabase + Amplify) + expanded code review
+
+**Auditor**: Independent end-to-end audit using Supabase CLI + AWS CLI (zero assumptions, all verified against live systems).
+**Live verification**: Supabase project `atkrxelwqymuafdhfdac` (DB queries via `supabase db query`); AWS Amplify app `d1uzl82ecnfxs5` (env vars + buildSpec via `aws amplify`).
+
+### LIVE FIXES APPLIED THIS ROUND (commit `3306510` + direct infra changes)
+
+#### RLS-001: `codewix_ai` schema had RLS disabled [CRITICAL] — ✅ FIXED
+- **Bug**: The `20260802020000_enable_rls` migration only enabled RLS on 5 `public`-schema tables. The `codewix_ai` schema tables (`Chat`, `Message`, `GeneratedApp`) were never covered, and zero RLS policies existed anywhere. Supabase PostgREST `anon`/`authenticated` roles could read/write all chats and messages directly via the REST API.
+- **Verification**: `pg_tables.rowsecurity` was `false` for all 3 `codewix_ai` tables; `pg_policies` returned 0 rows.
+- **Fix applied live**: `ALTER TABLE codewix_ai.{Chat,Message,GeneratedApp} ENABLE ROW LEVEL SECURITY;` + deny-anon SELECT policies (`USING (false)` for `anon, authenticated`). App connects as `postgres` (owner, bypasses RLS) so zero app impact.
+- **Verified after fix**: all 3 tables `rowsecurity=true`; 3 deny-anon policies exist.
+
+#### ERR-005 (REVISITED): Amplify console buildSpec was NOT actually fixed — ✅ NOW FIXED
+- **Bug**: ERRORS.md previously claimed ERR-005 was "✅ FIXED — Updated Amplify console buildSpec via AWS CLI to match repo's amplify.yml". Live verification showed the console `buildSpec` was still `"-"` (default), overriding the repo's `amplify.yml`.
+- **Fix applied live**: `aws amplify update-app --app-id d1uzl82ecnfxs5 --build-spec file:///tmp/buildspec.yml`. Console buildSpec now contains `corepack enable` + `corepack prepare pnpm@9.15.9 --activate` + `pnpm install --frozen-lockfile`.
+- **Verified after fix**: `aws amplify get-app` returns the full buildSpec.
+
+#### H4 (CODE): `Chat` schema had no `userId` — ✅ FIXED
+- **Bug**: Ownership was only derivable via `Project.chatId → userId`. `/api/create-chat` creates chats without a Project → unowned → `update-chat-model` 404, `createMessage` throws "Chat not found".
+- **Fix applied**: Added `userId String?` to `Chat` model + `@@index([userId])`. Migration `20260807000000_add_chat_userid` adds the column + backfills from `Project.chatId → Project.userId` + creates index.
+- **Live DB**: migration applied; 18/21 chats backfilled with `userId`; 3 remain null (no associated Project).
+- **Ownership checks updated** in 3 files to prefer `Chat.userId` with `Project` fallback:
+  - `app/api/get-next-completion-stream-promise/route.ts`
+  - `app/api/generate-chat-title/route.ts`
+  - `app/(main)/actions.ts` (`createMessage`)
+
+#### C1: Directory `app/share/v2/essageId]` typo [CRITICAL] — ✅ FIXED
+- **Bug**: Directory named `essageId]` (missing `[m`) → Next.js treated it as a static path, `params.messageId` always `undefined`, `notFound()` on every visit.
+- **Fix**: `git mv` to `app/share/v2/[messageId]`.
+
+#### C2: `_opengraph-image.tsx` leading underscore [CRITICAL] — ✅ FIXED
+- **Bug**: Next.js metadata convention requires `opengraph-image.tsx` (no underscore). The `_` prefix made the 67-line `ImageResponse` handler dead code.
+- **Fix**: Renamed to `opengraph-image.tsx`.
+
+#### C3: Streaming route had NO authentication [CRITICAL] — ✅ FIXED
+- **File**: `app/api/get-next-completion-stream-promise/route.ts`
+- **Bug**: `POST` never called `getSessionUserId()`. Anyone with a `messageId` could consume Groq/Gemini/Cerebras/OpenRouter credits (`maxDuration: 300`).
+- **Fix**: Added `getSessionUserId()` → 401; added ownership check (`Chat.userId || Project fallback`) after message lookup.
+
+#### C4: Chat-title route had NO authentication [CRITICAL] — ✅ FIXED
+- **File**: `app/api/generate-chat-title/route.ts`
+- **Bug**: No auth; anyone with a `chatId` triggered an LLM call + `prisma.chat.update` overwriting the title.
+- **Fix**: Added `getSessionUserId()` → 401; added ownership check.
+
+#### C5: S3 upload route was a bare unauthenticated re-export [CRITICAL] — ✅ FIXED
+- **File**: `app/api/s3-upload/route.ts`
+- **Bug**: `export { POST } from "next-s3-upload/route";` — no auth, no MIME limits, no size caps.
+- **Fix**: Wrapped with `getSessionUserId()` → 401 before delegating to upstream handler.
+
+#### C6: Stream `useEffect` had NO cleanup [CRITICAL] — ✅ FIXED
+- **File**: `app/(main)/chats/[id]/page.client.tsx`
+- **Bug**: Stream-processing effect returned no cleanup. On unmount mid-generation: watchdog intervals kept firing, `ChatCompletionStream` kept consuming, `on("finalContent")` called `createMessage` on a stale chat + `router.refresh()` on the new page.
+- **Fix**: Added `cancelWatchdogRef`; effect returns cleanup that cancels watchdog, aborts controller, cancels stream.
+
+#### C7: `handleScreenshotUpload` had no try/catch [CRITICAL] — ✅ FIXED
+- **File**: `app/(main)/home-client.tsx`
+- **Bug**: `await uploadToS3(file)` with no error handling. S3 env vars unset (ERR-007) → throws every time → spinner stuck forever.
+- **Fix**: Wrapped in try/catch + toast + `finally { setScreenshotLoading(false) }`.
+
+#### M9: OG route CSS `background` shorthand overrode `backgroundImage` [MEDIUM] — ✅ FIXED
+- **File**: `app/api/og/route.tsx`
+- **Bug**: `background: "white"` (shorthand) reset `backgroundImage` to `none` → every OG image was plain white.
+- **Fix**: Changed to `backgroundColor: "white"`.
+
+#### H1: OTP used `Math.random()` [HIGH] — ✅ FIXED
+- **File**: `lib/auth.ts`
+- **Bug**: `Math.floor(100000 + Math.random() * 900000)` — xorshift128+, not CSPRNG.
+- **Fix**: `crypto.randomInt(100000, 1000000)`.
+
+#### M2: Prior unused OTPs remained valid [MEDIUM] — ✅ FIXED
+- **File**: `lib/auth.ts`
+- **Bug**: `issueOtp` didn't invalidate prior unused codes → every code issued in the last 10 min was independently valid. Verified against live DB: `akhiakmtr@gmail.com` had 3 codes with 1 still unused.
+- **Fix**: Added `prisma.otpCode.updateMany({ where: { email, purpose, used: false }, data: { used: true } })` before creating the new code.
+
+#### createMessage performance + `Math.max([])` bug [MEDIUM] — ✅ FIXED
+- **File**: `app/(main)/actions.ts`
+- **Bug**: Fetched ALL messages (`include: { messages: true }`) just to compute `Math.max(positions)`. Empty chat → `Math.max()` = `-Infinity` → corrupted `position`.
+- **Fix**: Replaced with `prisma.message.aggregate({ _max: { position: true } })` + `?? 0` fallback.
+
+#### ERR-016 CORRECTION: `resolvedModel` was NOT unused — ✅ DOC CORRECTED
+- **Bug**: ERR-016 claimed `const resolvedModel = resolveModel(model)` in `create-chat/route.ts:27` was unused. It IS used at line 56 in Braintrust `metadata`. The original audit was a misdiagnosis.
+- **Action**: No code change; ERRORS.md now documents this so future audits don't re-flag it.
+
+---
+
+## REMAINING UNFIXED ISSUES (future work — prioritized)
+
+### H2 — Password-reset token is reusable for 10 min [HIGH] — ❌ UNFIXED
+- **File**: `app/api/auth/reset-password/confirm/route.ts` (lines 18-35); `lib/auth.ts:9` `RESET_TOKEN_MAX_AGE = 600`
+- **Bug**: `verifyResetToken` only checks JWT signature + `exp`. After a successful password change, the token is NOT invalidated — no server-side blocklist or nonce. The JWT remains valid for the full 10-minute lifetime.
+- **Impact**: An attacker who intercepted the reset token (via Referer/log leak — see L11) can call `/confirm` again within 10 min and re-set the password, locking out the legitimate user.
+- **Fix needed**: Issue a single-use, DB-stored reset nonce instead of a pure JWT; OR embed a `passwordResetVersion` counter in `User` and in the token, reject if they differ (increment version on every successful reset).
+
+### H3 — Sessions never invalidated on password reset [HIGH] — ❌ UNFIXED
+- **File**: `lib/auth.ts` (lines 24-30 `getSessionUserId`, 59-70); `app/api/auth/reset-password/confirm/route.ts:32-33`
+- **Bug**: `getSessionUserId` only runs `jwtVerify` — never confirms the user still exists or that their credential version is current. Password reset updates `passwordHash` but does nothing to existing sessions. JWT has 30-day lifetime. No revocation path at all (not on reset, not on signout — signout only clears the cookie client-side). Deleted/deactivated users keep working sessions.
+- **Verification**: Confirmed against live DB — `public.users` has NO `tokenVersion` / `sessionsInvalidatedAt` column.
+- **Fix needed**: Add `sessionsInvalidatedAt`/`tokenVersion` column to `User`; embed it in JWT `payload`; reject in `getSessionUserId` when DB value no longer matches; bump the version on password reset.
+
+### M3 — OTP TOCTOU race condition [MEDIUM] — ❌ UNFIXED
+- **File**: `lib/auth.ts` (lines 158-184)
+- **Bug**: `findFirst` → check → `update({ used: true })` is not atomic. Two concurrent requests with the same valid code both pass the `otp.code !== code` guard and both call `update`. The `attempts >= 5` cap is also read-then-increment, so N concurrent wrong guesses each read `attempts=4` and each write `5` — none hit the cap on read.
+- **Impact**: Breaks the single-use guarantee under concurrency (especially relevant for the "reset" path). Weakens brute-force protection beyond the intended 5-attempt cap.
+- **Fix needed**: Use conditional update: `prisma.otpCode.updateMany({ where: { id: otp.id, used: false }, data: { used: true } })` and check `result.count === 1`. For the attempts cap, do the increment inside an `updateMany` with `where: { id, attempts: { lt: 5 } }` and re-read.
+
+### M4 — `sendOtpEmail` silently swallows delivery failures [MEDIUM] — ❌ UNFIXED
+- **File**: `lib/email.ts` (lines 37-39)
+- **Bug**: When Resend returns a non-OK response, the function logs but does not throw or return a failure indicator. Caller creates the OTP record, calls `sendOtpEmail`, tells the user "check your email" — but the email was never sent.
+- **Fix needed**: Return `{ ok: boolean; error?: string }` or throw on non-OK; let callers surface a "delivery failed" message.
+
+### M5 — No rate limiting on OTP resend / signup [MEDIUM] — ❌ UNFIXED
+- **Files**: `app/api/auth/resend-otp/route.ts`, `app/api/auth/signup/route.ts`, `lib/auth.ts:11` (`OTP_RESEND_SECONDS = 60`)
+- **Bug**: 60s cooldown is per-email only. No per-IP or global limit. `/resend-otp` doesn't even check whether a user exists for the `signup` purpose — issues + emails a code for any address. Attacker iterating emails can spam arbitrary inboxes via your Resend account.
+- **Fix needed**: Add IP-based or global rate limit (sliding window) on `/resend-otp`, `/signup`, `/reset-password/request`. For `signup`/`reset` purposes, only issue if a user exists (signup currently doesn't).
+
+### M6 — Streaming route never aborts upstream LLM call on client disconnect [MEDIUM] — ❌ UNFIXED
+- **File**: `app/api/get-next-completion-stream-promise/route.ts` (lines ~243-254, 320)
+- **Bug**: `ai.chat.completions.stream({...})` is created with no `signal`. On client disconnect, the OpenAI SDK keeps pulling from the provider until it finishes — tokens continue to be billed. Client (`chat-box.tsx:198`) also passes no `AbortController`.
+- **Fix needed**: `const ac = new AbortController(); req.signal?.addEventListener("abort", () => ac.abort());` then pass `signal: ac.signal` to `.stream(...)`. Also pass `signal` from the client fetch.
+
+### M7 — `generateApp` coding step doesn't retry on streaming failure [MEDIUM] — ❌ UNFIXED (ERR-008 fix is incomplete)
+- **File**: `lib/generation.ts` (lines 168-175)
+- **Bug**: ERR-008 claimed "FIXED — full fallback loop for both planning and coding steps". The coding-step loop only iterates to find the first provider with an API key, then `break`s — it never retries on actual streaming/API failure (no try/catch around `stream()` or `finalContent()`). The planning step DOES have try/catch + `continue`.
+- **Fix needed**: Wrap the streaming consumption in try/catch inside the loop; on failure, log and `continue` to the next model slug.
+
+### M8 — `stream_options` retry in `generateApp` is ineffective [MEDIUM] — ❌ UNFIXED
+- **File**: `lib/generation.ts` (lines 262-285)
+- **Bug**: The try/catch wraps `ai.chat.completions.stream(...)`, but the SDK's `stream()` returns synchronously — the HTTP request runs in the background. API rejections of `stream_options` surface at `await stream.finalContent()`, NOT at `stream()`. The catch block almost never fires for API errors.
+- **Fix needed**: Move retry logic to wrap stream consumption — detect the rejection during `await stream.finalContent()` and recreate without `stream_options`. OR use `await ai.chat.completions.create({ stream: true, ... })` which makes the HTTP call eagerly.
+
+### M10 — Global `Escape` listener closes CodeViewer when a Dialog is open [MEDIUM] — ❌ UNFIXED
+- **File**: `app/(main)/chats/[id]/code-viewer.tsx` (lines 272-281)
+- **Bug**: Window-level `keydown` listener calls `onClose()` on every Escape while CodeViewer is mounted. When `GitHubPushDialog` is open and user presses Escape to dismiss it, this listener also fires → closes the entire code panel. Also, deps `[onClose]` use an inline arrow that changes identity every render.
+- **Fix needed**: Check `e.defaultPrevented` or guard with a "is a dialog open?" ref. Wrap `onClose` in `useCallback` for stable identity.
+
+### M11 — `Share` shows "copied" toast BEFORE clipboard write [MEDIUM] — ❌ UNFIXED
+- **File**: `app/(main)/chats/[id]/share.tsx` (lines 8-21)
+- **Bug**: `toast({ title: "App Published!" })` fires before `await navigator.clipboard.writeText(shareUrl.href)`. If `writeText` rejects (non-secure context, permissions), the toast already claimed success. No try/catch.
+- **Fix needed**: Move toast after the `await`, or wrap in try/catch and show an error toast on failure.
+
+### M12 — `useToast` re-registers listener on every state change [MEDIUM] — ❌ UNFIXED
+- **File**: `hooks/use-toast.ts` (lines 172-190)
+- **Bug**: `useEffect` deps are `[state]`. Effect pushes `setState` (stable) into `listeners` and removes on cleanup — but re-runs on every toast change. No-op functionally but wasteful.
+- **Fix needed**: Change deps to `[]`.
+
+### M13 — `ChatLog` O(n²) `indexOf` inside `.map` [MEDIUM] — ❌ UNFIXED
+- **File**: `app/(main)/chats/[id]/chat-log.tsx` (lines 57-82)
+- **Bug**: For each assistant message, calls `assistantMessages.map(m => m.id).indexOf(message.id)` — builds a new array + linear scan per message → O(n²). With 100 messages, 10,000+ ops per render.
+- **Fix needed**: Pre-compute a `Map<id, index>` once before the `.map`.
+
+### M14 — `eval-harness` leaks `window.renderFiles` on unmount [MEDIUM] — ❌ UNFIXED
+- **File**: `app/(main)/eval-harness/eval-harness-client.tsx` (lines 63-157)
+- **Bug**: Effect assigns `window.renderFiles` and `window.getEvalHarnessResult`. Cleanup only clears `watchdogRef` — does NOT delete the window globals. Post-unmount, they reference stale closures.
+- **Fix needed**: Add `delete window.renderFiles; delete window.getEvalHarnessResult;` to cleanup.
+
+### M15 — `streamPromise` local state never re-syncs from context [MEDIUM] — ❌ UNFIXED
+- **File**: `app/(main)/chats/[id]/page.client.tsx` (lines 67-69)
+- **Bug**: `useState(context.streamPromise)` seeds local state only on mount. If `context.streamPromise` changes after mount, local state doesn't update — the stream effect never fires for the context-only update.
+- **Fix needed**: Use `use(Context)` directly, or sync via an effect.
+
+### M16 — Pointless ternary in `setTimeout` [MEDIUM] — ❌ UNFIXED
+- **File**: `components/code-runner-react.tsx` (lines 389-392)
+- **Bug**: Both branches call `window.setTimeout(runBundle, X)` — only the delay differs. Dead logic.
+- **Fix needed**: Simplify to `window.setTimeout(runBundle, Math.max(0, previewDebounceMs))`.
+
+---
+
+### L1 — `chooseModelForProject` ignores `description` param [LOW] — ❌ UNFIXED
+- **File**: `lib/model-selection.ts` (lines 30-32, 34-54)
+- **Bug**: `COMPLEXITY_KEYWORDS` regex defined but never used. `chooseModelForProject` accepts `description` but never reads it — only looks up `TYPE_MODEL[projectTypeSlug]`.
+- **Fix needed**: Implement complexity routing or remove dead code.
+
+### L2 — `getFirstAvailableFallback` is dead code [LOW] — ❌ UNFIXED
+- **File**: `lib/ai-provider.ts` (lines 438-442)
+- **Bug**: `@deprecated` function exported with zero consumers.
+- **Fix needed**: Remove.
+
+### L3 — `screenshotToCodePrompt` is dead code [LOW] — ❌ UNFIXED
+- **File**: `lib/prompts.ts` (lines 26-34)
+- **Bug**: Exported, zero consumers. Intended for `describeScreenshot` which is a TODO stub.
+- **Fix needed**: Remove or wire up when screenshot vision is implemented.
+
+### L4 — `isProviderQuotaOrDownError` matches too broadly [LOW] — ❌ UNFIXED
+- **File**: `lib/ai-provider.ts` (lines 321-338)
+- **Bug**: Checks `m.includes("service")` and `m.includes("500")` — any error containing those substrings (e.g., "service account", a port number) is misclassified as provider-down.
+- **Fix needed**: Tighten patterns — match `"\b5\d\d\b"` for HTTP status, require `"service unavailable"` not bare `"service"`.
+
+### L5 — `describeScreenshot` hardcodes `provider: "groq"` [LOW] — ❌ UNFIXED
+- **File**: `lib/create-chat.ts` (line 66)
+- **Bug**: Braintrust span metadata hardcodes `provider: "groq"` regardless of the actual model's provider.
+- **Fix needed**: Use `resolveModelSlug(model).provider`.
+
+### L6 — `lib/ai-provider.ts` lacks `"server-only"` directive [LOW] — ❌ UNFIXED
+- **File**: `lib/ai-provider.ts` (line 1)
+- **Bug**: Imports `OpenAI` and reads `process.env` but has no `import "server-only"`. `lib/constants.ts` imports from it and is imported by client components. Tree-shaking should remove it, but no compile-time guard.
+- **Fix needed**: Add `import "server-only";` (may require splitting `MODELS` array out of `constants.ts`).
+
+### L7 — `getFilesFromMessage` unsafe `any[]` cast [LOW] — ❌ UNFIXED
+- **File**: `lib/utils.ts` (line 346)
+- **Bug**: `msg.files as any[]` without shape validation. Subsequent `f?.path` / `f?.code` accesses unchecked.
+- **Fix needed**: Define a `StoredFile` type and use `z.array(z.object({...})).safeParse()`.
+
+### L8 — `verifyOtp` TOCTOU race on concurrent verification [LOW] — ❌ UNFIXED (overlaps M3)
+- **File**: `lib/auth.ts` (lines 158-184)
+- **Bug**: `findFirst` then `update` is not atomic. Two concurrent correct submissions both succeed.
+- **Fix needed**: Same as M3 — `updateMany` with conditional `where`.
+
+### L9 — `signin` 403 vs 401 leaks password correctness [LOW] — ❌ UNFIXED
+- **File**: `app/api/auth/signin/route.ts` (lines 23-39)
+- **Bug**: `DUMMY_PASSWORD_HASH` equalizes user-not-found timing, but 403 fires only when password was correct + account unverified. 401 fires for wrong-password/nonexistent. Attacker can confirm a cracked password even when login is blocked.
+- **Fix needed**: Merge unverified state into generic 401; communicate `needsVerification` via a separate signed channel.
+
+### L10 — `reset-password/request` timing leaks account existence [LOW] — ❌ UNFIXED
+- **File**: `app/api/auth/reset-password/request/route.ts` (lines 19-29)
+- **Bug**: Comment says "always respond the same way", but when `user` exists the handler does `issueOtp` + `sendOtpEmail` (network round-trip to Resend); when not, returns immediately. Response-time differential enables email enumeration.
+- **Fix needed**: When `user` is null, perform a dummy `bcrypt.compare` to match timing.
+
+### L11 — `signup` 409 reveals verified accounts [LOW] — ❌ UNFIXED
+- **File**: `app/api/auth/signup/route.ts` (lines 18-24)
+- **Bug**: Returns 409 "Email is already registered" only when `existing?.emailVerified`. Combined with L9, gives two enumeration oracles.
+- **Fix needed**: Always return 200 + send OTP to the original owner; surface generic "check your email".
+
+### L12 — Reset token carried in URL query string [LOW] — ❌ UNFIXED
+- **File**: `app/(auth)/reset-password/new/new-password-form.tsx` (lines 11, 94)
+- **Bug**: JWT reset token read from `?token=...` and passed to `/confirm`. URL query strings leak via Referer, browser history, proxy logs, analytics. Amplifies H2.
+- **Fix needed**: Store token in a short-lived `httpOnly` cookie set by `/verify-otp`; read server-side in `/reset-password/new`. Remove the query param.
+
+### L13 — `LogoSmall` uses `<img>` without dimensions [LOW] — ❌ UNFIXED
+- **File**: `components/icons/logo-small.tsx` (line 4)
+- **Bug**: `<img src="/logo.png" />` — not `next/image`, no width/height. Triggers `@next/next/no-img-element` + potential CLS.
+- **Fix needed**: Use `next/image` or add `width={24} height={24}`.
+
+### L14 — `SiteFooter` `new Date().getFullYear()` hydration mismatch [LOW] — ❌ UNFIXED
+- **File**: `components/home/site-footer.tsx` (line 94)
+- **Bug**: `{new Date().getFullYear()}` runs on both server (SSR) and client (hydration). If server/client are in different timezones around midnight Dec 31, year differs → hydration mismatch warning.
+- **Fix needed**: Use a `useEffect`-set state or `suppressHydrationWarning`.
+
+---
+
+## SUMMARY TABLE (Round 2)
+
+| Status | Count | Items |
+|--------|-------|-------|
+| ✅ FIXED this round | 13 | RLS-001, ERR-005, H4, C1, C2, C3, C4, C5, C6, C7, M9, H1, M2, createMessage-perf, ERR-016-correction |
+| ❌ UNFIXED (future) | 22 | H2, H3, M3, M4, M5, M6, M7, M8, M10, M11, M12, M13, M14, M15, M16, L1-L14 |
+
+### Recommended fix order for next round
+1. **H2 + H3** — single-use reset tokens + session invalidation (both need a `tokenVersion`/`passwordResetVersion` column on `User`; do together).
+2. **M3** — atomic OTP verify (`updateMany` with conditional `where`).
+3. **M5** — rate limiting on auth endpoints (IP-based sliding window).
+4. **M6** — streaming `AbortController` on client disconnect (cost savings).
+5. **M4** — `sendOtpEmail` error surfacing.
+6. **M7 + M8** — `generateApp` fallback completeness (benchmark correctness).
+7. Remaining M10-M16 + L1-L14 (polish).
