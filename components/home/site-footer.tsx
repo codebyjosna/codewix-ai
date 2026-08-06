@@ -91,7 +91,11 @@ export default function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 text-sm text-white/50 sm:flex-row">
-          <div>&copy; {new Date().getFullYear()} Codewix. All rights reserved.</div>
+          {/* L14: suppressHydrationWarning guards against the rare case where
+              server and client render the year differently around midnight UTC. */}
+          <div suppressHydrationWarning>
+            &copy; {new Date().getFullYear()} Codewix. All rights reserved.
+          </div>
           <div>Powered by NVIDIA NIM</div>
         </div>
       </div>

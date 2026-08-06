@@ -180,7 +180,11 @@ function useToast() {
         listeners.splice(index, 1);
       }
     };
-  }, [state]);
+    // M12: setState is stable (from useState), so deps should be empty —
+    // previously [state] caused the listener to be removed + re-added on
+    // every toast change, a wasteful no-op.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     ...state,

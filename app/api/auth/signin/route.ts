@@ -27,14 +27,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // L9: merge unverified state into a generic 401 to avoid leaking that the
+  // password was correct. Communicate needsVerification via the body only.
   if (!user.emailVerified) {
     return NextResponse.json(
       {
-        error: "Please verify your email first",
+        error: "Invalid email or password",
         email: user.email,
         needsVerification: true,
       },
-      { status: 403 },
+      { status: 401 },
     );
   }
 

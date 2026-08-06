@@ -54,7 +54,9 @@ export const resetPasswordRequestSchema = z.object({
 });
 
 export const resetPasswordConfirmSchema = z.object({
-  resetToken: z.string().min(1, "Reset token is required"),
+  // L12: resetToken is now optional in the body — the confirm route falls
+  // back to the httpOnly reset-token cookie set by /verify-otp.
+  resetToken: z.string().min(1).optional(),
   password: passwordSchema,
 });
 

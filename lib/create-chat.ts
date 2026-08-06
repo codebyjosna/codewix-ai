@@ -63,7 +63,12 @@ export async function createChatRecord({
               type: "llm",
               event: {
                 input: { prompt, hasScreenshot: true },
-                metadata: { chatId, route, provider: "groq" },
+                metadata: {
+                  chatId,
+                  route,
+                  // L5: derive provider from the selected model, not hardcoded.
+                  provider: resolveModelSlug(model).provider,
+                },
               },
             },
           )

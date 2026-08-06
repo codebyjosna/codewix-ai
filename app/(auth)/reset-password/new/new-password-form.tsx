@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, FormEvent } from "react";
 import { StatusDialog, useStatusDialog } from "@/components/ui/status-dialog";
@@ -8,6 +7,9 @@ import { StatusDialog, useStatusDialog } from "@/components/ui/status-dialog";
 export default function NewPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // L12: token is now optional in the URL — the httpOnly reset-token cookie
+  // (set by /verify-otp) is the primary source. We still read the URL param
+  // for backward compat with older email links.
   const token = searchParams.get("token") || "";
 
   const [password, setPassword] = useState("");
@@ -28,7 +30,8 @@ export default function NewPasswordForm() {
       const res = await fetch("/api/auth/reset-password/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resetToken: token, password }),
+        // If token is empty, the confirm route falls back to the cookie.
+        body: JSON.stringify({ resetToken: token || undefined, password }),
       });
       const data = await res.json();
 
@@ -43,22 +46,6 @@ export default function NewPasswordForm() {
     } finally {
       setPending(false);
     }
-  }
-
-  if (!token) {
-    return (
-      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-sm text-gray-600">
-          This reset link is invalid or has expired.
-        </p>
-        <Link
-          href="/reset-password"
-          className="mt-4 inline-block font-medium text-gray-900 hover:underline"
-        >
-          Request a new one
-        </Link>
-      </div>
-    );
   }
 
   return (

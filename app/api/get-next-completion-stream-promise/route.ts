@@ -271,6 +271,15 @@ async function handleStreamRequest(req: Request) {
     try {
       const { ai } = tryCreateStream(modelSlug);
 
+      // M6: tie the upstream LLM stream to the client request signal so that
+      // when the client disconnects (navigate away, tab close), the provider
+      // stream is aborted and we stop being billed for further tokens.
+      const abortController = new AbortController();
+      if (req.signal) {
+        if (req.signal.aborted) abortController.abort();
+        else req.signal.addEventListener("abort", () => abortController.abort(), { once: true });
+      }
+
       let stream: ReturnType<typeof ai.chat.completions.stream>;
       try {
         stream = ai.chat.completions.stream({
@@ -279,6 +288,7 @@ async function handleStreamRequest(req: Request) {
           temperature,
           max_tokens: maxTokens,
           stream_options: { include_usage: true },
+          signal: abortController.signal,
         });
       } catch (error) {
         const errorMsg = buildProviderErrorMessage(entry.provider, modelSlug, error);

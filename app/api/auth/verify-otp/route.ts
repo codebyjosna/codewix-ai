@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/prisma";
 import { verifyOtp, createSession, createResetToken } from "@/lib/auth";
 import { verifyOtpSchema, firstIssueMessage } from "@/lib/validation";
+
+const RESET_TOKEN_COOKIE = "reset-token";
+const RESET_TOKEN_MAX_AGE = 60 * 10; // 10 minutes
 
 export async function POST(req: NextRequest) {
   const parsed = verifyOtpSchema.safeParse(await req.json().catch(() => null));
@@ -34,5 +38,16 @@ export async function POST(req: NextRequest) {
   }
 
   const resetToken = await createResetToken(email);
+  // L12: set the reset token as an httpOnly cookie so it doesn't leak via
+  // Referer / browser history / proxy logs the way a URL query param does.
+  // Still return it in the body for backward compat with older clients.
+  const cookieStore = await cookies();
+  cookieStore.set(RESET_TOKEN_COOKIE, resetToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: RESET_TOKEN_MAX_AGE,
+  });
   return NextResponse.json({ resetToken });
 }

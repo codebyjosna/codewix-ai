@@ -9,6 +9,7 @@ const SESSION_COOKIE = "session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 const RESET_TOKEN_MAX_AGE = 60 * 10; // 10 minutes
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_MAX_ATTEMPTS = 5;
 export const OTP_RESEND_SECONDS = 60;
 
 function getSecret(): Uint8Array {
@@ -35,8 +36,28 @@ export async function verifyPassword(password: string, hash: string) {
 export const DUMMY_PASSWORD_HASH =
   "$2a$10$CwTycUXWue0Thq9StjUM0uJ8Vf.dS0mHYPS8ZO7lHFmqx0hVLnKmS";
 
+// Fetch the current tokenVersion for a user. Returns null if user not found.
+async function getUserTokenVersion(userId: string): Promise<number | null> {
+  const prisma = getPrisma();
+  const row = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tokenVersion: true },
+  });
+  return row?.tokenVersion ?? null;
+}
+
+// Bump the tokenVersion for a user, invalidating all existing sessions.
+export async function invalidateUserSessions(userId: string): Promise<void> {
+  const prisma = getPrisma();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { tokenVersion: { increment: 1 } },
+  });
+}
+
 export async function createSession(userId: string) {
-  const token = await new SignJWT({ sub: userId })
+  const tokenVersion = (await getUserTokenVersion(userId)) ?? 0;
+  const token = await new SignJWT({ sub: userId, v: tokenVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
@@ -64,7 +85,17 @@ export async function getSessionUserId(): Promise<string | null> {
 
   try {
     const { payload } = await jwtVerify(token, getSecret());
-    return typeof payload.sub === "string" ? payload.sub : null;
+    const userId = typeof payload.sub === "string" ? payload.sub : null;
+    if (!userId) return null;
+
+    // H3: validate that the tokenVersion in the JWT still matches the DB.
+    // If the user reset their password (which bumps tokenVersion), the JWT
+    // is stale and must be rejected.
+    const tokenV = typeof payload.v === "number" ? payload.v : 0;
+    const dbV = await getUserTokenVersion(userId);
+    if (dbV === null || dbV !== tokenV) return null;
+
+    return userId;
   } catch {
     return null;
   }
@@ -87,8 +118,16 @@ export async function getCurrentUser() {
 
 // Short-lived token proving OTP-verified ownership of an email, used to
 // authorize the "set new password" step without re-sending a code.
+// Embeds the current tokenVersion so that once the password is reset (which
+// bumps the version), this token can no longer be reused (H2: single-use).
 export async function createResetToken(email: string) {
-  return new SignJWT({ email, purpose: "reset" })
+  const prisma = getPrisma();
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { tokenVersion: true },
+  });
+  const tokenVersion = user?.tokenVersion ?? 0;
+  return new SignJWT({ email, purpose: "reset", v: tokenVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${RESET_TOKEN_MAX_AGE}s`)
@@ -103,6 +142,16 @@ export async function verifyResetToken(
     if (payload.purpose !== "reset" || typeof payload.email !== "string") {
       return null;
     }
+    // H2: reject if the tokenVersion no longer matches the DB — the password
+    // was already reset since this token was issued.
+    const tokenV = typeof payload.v === "number" ? payload.v : 0;
+    const prisma = getPrisma();
+    const user = await prisma.user.findUnique({
+      where: { email: payload.email },
+      select: { tokenVersion: true },
+    });
+    if (!user || user.tokenVersion !== tokenV) return null;
+
     return payload.email;
   } catch {
     return null;
@@ -176,22 +225,32 @@ export async function verifyOtp(
   if (otp.expiresAt < new Date()) {
     return { ok: false as const, error: "Code expired" };
   }
-  if (otp.attempts >= 5) {
+
+  // M3: atomically claim a wrong-attempt slot only if attempts < cap.
+  // This prevents the TOCTOU race where N concurrent wrong guesses each
+  // read attempts=4 and never hit the cap.
+  if (otp.attempts >= OTP_MAX_ATTEMPTS) {
     return { ok: false as const, error: "Too many attempts" };
   }
 
   if (otp.code !== code) {
-    await prisma.otpCode.update({
-      where: { id: otp.id },
+    // Conditional increment: only increments if still under the cap.
+    await prisma.otpCode.updateMany({
+      where: { id: otp.id, attempts: { lt: OTP_MAX_ATTEMPTS } },
       data: { attempts: { increment: 1 } },
     });
     return { ok: false as const, error: "Incorrect code" };
   }
 
-  await prisma.otpCode.update({
-    where: { id: otp.id },
+  // M3: atomically claim the OTP. updateMany returns count=1 only for the
+  // winner; concurrent losers get count=0 and are rejected.
+  const claimed = await prisma.otpCode.updateMany({
+    where: { id: otp.id, used: false },
     data: { used: true },
   });
+  if (claimed.count !== 1) {
+    return { ok: false as const, error: "Code already used" };
+  }
 
   return { ok: true as const };
 }

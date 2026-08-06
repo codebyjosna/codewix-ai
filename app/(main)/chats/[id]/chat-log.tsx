@@ -30,6 +30,9 @@ export default function ChatLog({
       (extractFirstCodeBlock(m.content) ||
         extractAllCodeBlocks(m.content).length > 0),
   );
+  // M13: pre-compute a Map<id, index> once so the .map below is O(n) instead
+  // of O(n²) (was calling indexOf per message, building a new array each time).
+  const assistantIndex = new Map(assistantMessages.map((m, i) => [m.id, i]));
 
   return (
     <StickToBottom
@@ -63,14 +66,12 @@ export default function ChatLog({
                 content={message.content}
                 version={
                   (chat.assistantMessagesCountBefore || 0) +
-                  assistantMessages.map((m) => m.id).indexOf(message.id) +
+                  (assistantIndex.get(message.id) ?? 0) +
                   1
                 }
                 message={message}
                 previousMessage={(() => {
-                  const idx = assistantMessages
-                    .map((m) => m.id)
-                    .indexOf(message.id);
+                  const idx = assistantIndex.get(message.id) ?? -1;
                   return idx > 0 ? assistantMessages[idx - 1] : undefined;
                 })()}
                 isActive={!streamText && activeMessage?.id === message.id}

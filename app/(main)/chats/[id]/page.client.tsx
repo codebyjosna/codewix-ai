@@ -67,6 +67,15 @@ export default function PageClient({ chat }: { chat: Chat }) {
   const [streamPromise, setStreamPromise] = useState<
     Promise<ReadableStream> | undefined
   >(context.streamPromise);
+  // M15: sync local streamPromise from context if it changes after mount
+  // (e.g. home-client sets it after this component already mounted via
+  // back/forward cache). Without this the stream effect never fires for a
+  // context-only update.
+  useEffect(() => {
+    if (context.streamPromise && !streamPromise) {
+      setStreamPromise(context.streamPromise);
+    }
+  }, [context.streamPromise, streamPromise]);
   const [streamText, setStreamText] = useState("");
   const [isShowingCodeViewer, setIsShowingCodeViewer] = useState(
     chat.messages.some((m) => m.role === "assistant"),

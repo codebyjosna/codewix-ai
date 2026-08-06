@@ -271,8 +271,15 @@ export default function CodeViewer({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
+      // M10: don't close the code panel when a dialog (GitHubPushDialog, etc.)
+      // is open — baseui Dialog doesn't stop propagation on window-level
+      // keydown, so without this guard pressing Escape to dismiss a dialog
+      // also closes the code panel.
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        const dialogOpen = document.querySelector("[role='dialog'], [data-state='open']");
+        if (!dialogOpen) {
+          onClose();
+        }
       }
     };
 

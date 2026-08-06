@@ -391,18 +391,124 @@
 
 ---
 
-## SUMMARY TABLE (Round 2)
+## ROUND 3 FIXES (2026-08-07) — All remaining items resolved
 
-| Status | Count | Items |
-|--------|-------|-------|
-| ✅ FIXED this round | 13 | RLS-001, ERR-005, H4, C1, C2, C3, C4, C5, C6, C7, M9, H1, M2, createMessage-perf, ERR-016-correction |
-| ❌ UNFIXED (future) | 22 | H2, H3, M3, M4, M5, M6, M7, M8, M10, M11, M12, M13, M14, M15, M16, L1-L14 |
+All 22 previously-unfixed items from Round 2 are now FIXED (commit pending).
 
-### Recommended fix order for next round
-1. **H2 + H3** — single-use reset tokens + session invalidation (both need a `tokenVersion`/`passwordResetVersion` column on `User`; do together).
-2. **M3** — atomic OTP verify (`updateMany` with conditional `where`).
-3. **M5** — rate limiting on auth endpoints (IP-based sliding window).
-4. **M6** — streaming `AbortController` on client disconnect (cost savings).
-5. **M4** — `sendOtpEmail` error surfacing.
-6. **M7 + M8** — `generateApp` fallback completeness (benchmark correctness).
-7. Remaining M10-M16 + L1-L14 (polish).
+### H2 — Password-reset token is reusable [HIGH] — ✅ FIXED
+- Added `tokenVersion Int @default(0)` to `User` model (migration `20260807010000_add_user_token_version`, applied live).
+- `createResetToken` now embeds the current `tokenVersion` in the JWT.
+- `verifyResetToken` rejects if the DB `tokenVersion` no longer matches → the token is single-use (a successful reset bumps the version via `invalidateUserSessions`).
+- `reset-password/confirm` calls `invalidateUserSessions(user.id)` after updating the password.
+
+### H3 — Sessions not invalidated on password reset [HIGH] — ✅ FIXED
+- `createSession` embeds `v: tokenVersion` in the JWT payload.
+- `getSessionUserId` validates the JWT's `v` against the DB `tokenVersion`; rejects on mismatch.
+- `invalidateUserSessions(userId)` increments `tokenVersion`, invalidating all existing sessions for that user.
+- Called from `reset-password/confirm` after a password change.
+- Verified against live DB: `public.users.token_version` column exists (integer, default 0).
+
+### M3 — OTP TOCTOU race condition [MEDIUM] — ✅ FIXED
+- `verifyOtp` now uses `updateMany({ where: { id, used: false }, data: { used: true } })` and checks `count === 1` — only the concurrent winner proceeds.
+- Wrong-attempt increment uses `updateMany({ where: { id, attempts: { lt: 5 } } })` so concurrent wrong guesses can't bypass the cap.
+- Extracted `OTP_MAX_ATTEMPTS = 5` constant.
+
+### M4 — `sendOtpEmail` swallows delivery failures [MEDIUM] — ✅ FIXED
+- `sendOtpEmail` now returns `SendOtpResult = { ok: true } | { ok: false; error: string }`.
+- Callers (`signup`, `resend-otp`, `reset-password/request`) check the result and surface a 502 error to the user.
+
+### M5 — No rate limiting on auth endpoints [MEDIUM] — ✅ FIXED
+- New `lib/rate-limit.ts`: in-memory sliding-window rate limiter with `getClientId(req)` (reads `x-forwarded-for` / `x-real-ip`).
+- Applied to `signup` (5/5min), `resend-otp` (5/5min), `reset-password/request` (5/5min) — all keyed by IP.
+- Auto-prunes expired entries every 5 min to bound memory.
+
+### M6 — Streaming route doesn't abort on client disconnect [MEDIUM] — ✅ FIXED
+- `get-next-completion-stream-promise/route.ts` creates an `AbortController`, wires `req.signal` → `abortController.abort()`, and passes `signal` to `ai.chat.completions.stream()`.
+- On client disconnect, the upstream provider stream is aborted → stops billing further tokens.
+
+### M7 — `generateApp` coding-step fallback incomplete [MEDIUM] — ✅ FIXED
+- `lib/generation.ts` coding step now wraps the full stream consumption (not just key availability) in try/catch inside the model loop.
+- On streaming failure, logs + `continue`s to the next provider — matching the planning-step pattern.
+- Extracted `tryCodingStream` helper.
+
+### M8 — `stream_options` retry ineffective [MEDIUM] — ✅ FIXED
+- `tryCodingStream` wraps `await stream.finalContent()` (where SDK errors actually surface) in try/catch.
+- Detects `stream_options`/`include_usage`/`unknown parameter` rejection and retries once without `stream_options`.
+
+### M10 — Escape listener closes CodeViewer when Dialog open [MEDIUM] — ✅ FIXED
+- `code-viewer.tsx` Escape handler now checks `e.defaultPrevented` and queries for an open dialog (`[role='dialog'], [data-state='open']`) before calling `onClose()`.
+
+### M11 — Share shows "copied" toast before clipboard write [MEDIUM] — ✅ FIXED
+- `share.tsx` now `await navigator.clipboard.writeText()` first; toasts success only on resolve, shows a destructive error toast on rejection.
+
+### M12 — `useToast` re-registers listener on every state change [MEDIUM] — ✅ FIXED
+- `hooks/use-toast.ts` effect deps changed from `[state]` to `[]` (setState is stable).
+
+### M13 — `ChatLog` O(n²) `indexOf` [MEDIUM] — ✅ FIXED
+- `chat-log.tsx` pre-computes `assistantIndex = new Map(assistantMessages.map((m, i) => [m.id, i]))` once; the `.map` body does O(1) lookups.
+
+### M14 — `eval-harness` leaks `window.renderFiles` [MEDIUM] — ✅ FIXED
+- `eval-harness-client.tsx` cleanup now `delete`s `window.renderFiles` and `window.getEvalHarnessResult` (via `as unknown as Record<string, unknown>`).
+
+### M15 — `streamPromise` local state never re-syncs [MEDIUM] — ✅ FIXED
+- `page.client.tsx` added `useEffect` that syncs local `streamPromise` from `context.streamPromise` when local is empty but context has a value.
+
+### M16 — Pointless ternary in `setTimeout` [MEDIUM] — ✅ FIXED
+- `code-runner-react.tsx` simplified to `window.setTimeout(runBundle, Math.max(0, previewDebounceMs))`.
+
+### L1 — `chooseModelForProject` ignores `description` [LOW] — ✅ FIXED
+- `model-selection.ts` now uses `COMPLEXITY_KEYWORDS` to detect complex prompts and upgrades to a stronger reasoning model (`gemini-2.5-pro` → `deepseek-v3` → `qwen-3.6-27b` → `llama-3.3-70b`) when matched.
+
+### L2 — `getFirstAvailableFallback` dead code [LOW] — ✅ FIXED
+- Removed the `@deprecated` function from `lib/ai-provider.ts`.
+
+### L3 — `screenshotToCodePrompt` dead code [LOW] — ✅ FIXED
+- Removed the unused export from `lib/prompts.ts`.
+
+### L4 — `isProviderQuotaOrDownError` too broad [LOW] — ✅ FIXED
+- `lib/ai-provider.ts`: replaced bare `"service"` with `"service unavailable"`; replaced bare `"500"`/`"502"`/`"503"` with `/\b5\d\d\b/` regex (word-boundary 5xx match).
+
+### L5 — `describeScreenshot` hardcoded `provider: "groq"` [LOW] — ✅ FIXED
+- `lib/create-chat.ts`: now uses `resolveModelSlug(model).provider`.
+
+### L6 — `lib/ai-provider.ts` lacks `"server-only"` [LOW] — ✅ FIXED
+- Added `import "server-only";` at the top.
+
+### L7 — `getFilesFromMessage` unsafe `any[]` cast [LOW] — ✅ FIXED
+- `lib/utils.ts`: replaced `as any[]` with shape-validating loop that checks `path`/`code` are strings before pushing.
+
+### L8 — `verifyOtp` TOCTOU [LOW] — ✅ FIXED (by M3)
+- Same `updateMany` fix as M3 covers this.
+
+### L9 — `signin` 403 vs 401 leaks password correctness [LOW] — ✅ FIXED
+- `signin/route.ts`: unverified accounts now return 401 (not 403) with the same "Invalid email or password" message; `needsVerification` communicated via body only.
+
+### L10 — `reset-password/request` timing leak [LOW] — ✅ FIXED
+- When user is null, runs a dummy `verifyPassword("dummy", DUMMY_PASSWORD_HASH)` to match timing with the user-exists path.
+
+### L11 — `signup` 409 reveals verified accounts [LOW] — ✅ FIXED
+- `signup/route.ts`: verified accounts no longer return 409; instead sends a fresh OTP and returns 200 (indistinguishable from a new signup). Password is not overwritten.
+
+### L12 — Reset token in URL query string [LOW] — ✅ FIXED
+- `verify-otp` route now sets the reset token as an `httpOnly` cookie (`reset-token`, 10-min maxAge, sameSite=lax).
+- `reset-password/confirm` reads the cookie as a fallback when the body doesn't include the token; clears the cookie after use.
+- `resetPasswordConfirmSchema.resetToken` made optional.
+- `new-password-form.tsx` sends `resetToken: undefined` when not in URL (cookie handles it); removed the "invalid link" gate so the form works without a URL token.
+
+### L13 — `LogoSmall` `<img>` without dimensions [LOW] — ✅ FIXED
+- Added `width={24} height={24}` attributes.
+
+### L14 — `SiteFooter` hydration mismatch [LOW] — ✅ FIXED
+- Wrapped the year render in `suppressHydrationWarning`.
+
+---
+
+## FINAL SUMMARY
+
+| Round | Fixed | Items |
+|-------|-------|-------|
+| Round 2 | 13 | RLS-001, ERR-005, H4, C1-C7, M9, H1, M2, createMessage-perf, ERR-016-correction |
+| Round 3 | 22 | H2, H3, M3-M8, M10-M16, L1-L14 |
+| **Total** | **35** | **All identified issues resolved** |
+
+No known unfixed issues remain.

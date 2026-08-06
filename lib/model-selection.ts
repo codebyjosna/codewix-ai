@@ -27,9 +27,19 @@ const TYPE_MODEL: Record<string, string> = {
   game: DEFAULT_MODEL,
 };
 
-// Signals in the description that warrant the strongest reasoning model
+// Signals in the description that warrant the strongest reasoning model.
+// L1: now actually used — when matched, upgrades the base model to a stronger
+// reasoning model if one is registered.
 const COMPLEXITY_KEYWORDS =
   /\b(real-?time|multiplayer|websocket|payment|stripe|authentication|machine learning|recommendation engine|3d|physics engine|animation-heavy|workflow engine|state machine|drag[- ]and[- ]drop builder)\b/i;
+
+// Models preferred for complex/realtime work (in priority order).
+const COMPLEX_MODEL_PREFERENCE = [
+  "gemini-2.5-pro",
+  "openrouter-deepseek-v3",
+  "qwen-3.6-27b",
+  "llama-3.3-70b",
+];
 
 export function chooseModelForProject(
   projectTypeSlug: string,
@@ -40,7 +50,14 @@ export function chooseModelForProject(
   const available = getAllModels(true, true);
   const availableSlugs = new Set(available.map((m) => m.slug));
 
-  const base = TYPE_MODEL[projectTypeSlug] ?? DEFAULT_MODEL;
+  let base = TYPE_MODEL[projectTypeSlug] ?? DEFAULT_MODEL;
+
+  // L1: if the description signals high complexity, upgrade to a stronger
+  // reasoning model (first available from the preference list).
+  if (description && COMPLEXITY_KEYWORDS.test(description)) {
+    const complex = COMPLEX_MODEL_PREFERENCE.find((s) => s in MODEL_REGISTRY);
+    if (complex) base = complex;
+  }
 
   // If the preferred model is in the registry, use it regardless of key.
   // The fallback chain in the stream route will handle missing keys.

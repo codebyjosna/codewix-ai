@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getPrisma } from "@/lib/prisma";
-import { verifyResetToken, hashPassword } from "@/lib/auth";
+import { verifyResetToken, hashPassword, invalidateUserSessions } from "@/lib/auth";
 import { resetPasswordConfirmSchema, firstIssueMessage } from "@/lib/validation";
+
+const RESET_TOKEN_COOKIE = "reset-token";
 
 export async function POST(req: NextRequest) {
   const parsed = resetPasswordConfirmSchema.safeParse(
@@ -13,7 +16,14 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const { resetToken, password } = parsed.data;
+  let { resetToken, password } = parsed.data;
+
+  // L12: fall back to the httpOnly cookie if the body didn't include the token
+  // (newer clients send it via cookie, not URL/body).
+  if (!resetToken) {
+    const cookieStore = await cookies();
+    resetToken = cookieStore.get(RESET_TOKEN_COOKIE)?.value ?? "";
+  }
 
   const email = await verifyResetToken(resetToken);
   if (!email) {
@@ -31,6 +41,13 @@ export async function POST(req: NextRequest) {
 
   const passwordHash = await hashPassword(password);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  // Bump tokenVersion: invalidates all existing sessions (H3) AND makes the
+  // reset token single-use since it embeds the old version (H2).
+  await invalidateUserSessions(user.id);
+
+  // Clear the reset cookie now that it's been used.
+  const cookieStore = await cookies();
+  cookieStore.delete(RESET_TOKEN_COOKIE);
 
   return NextResponse.json({ ok: true });
 }

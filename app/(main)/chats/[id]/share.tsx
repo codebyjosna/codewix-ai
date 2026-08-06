@@ -11,13 +11,23 @@ export function Share({ message }: { message?: Message }) {
     const baseUrl = window.location.href;
     const shareUrl = new URL(`/share/v2/${message.id}`, baseUrl);
 
-    toast({
-      title: "App Published!",
-      description: `App URL copied to clipboard: ${shareUrl.href}`,
-      variant: "default",
-    });
-
-    await navigator.clipboard.writeText(shareUrl.href);
+    // M11: write to clipboard FIRST, then toast on success — avoids false
+    // "copied" success when the clipboard API rejects (non-secure context,
+    // permissions policy).
+    try {
+      await navigator.clipboard.writeText(shareUrl.href);
+      toast({
+        title: "App Published!",
+        description: `App URL copied to clipboard: ${shareUrl.href}`,
+        variant: "default",
+      });
+    } catch {
+      toast({
+        title: "Share link ready",
+        description: `Could not copy automatically. Copy manually: ${shareUrl.href}`,
+        variant: "destructive",
+      });
+    }
   }
 
   return (

@@ -23,16 +23,6 @@ If given a description of a screenshot, produce an implementation plan based on 
 **Scope constraints:** Keep the plan to 2-3 MVP features at most and no more than 5 files. Build a single page with no routing. Do not plan any backend or external API calls. Keep the plan itself concise — under roughly 300 words — so it stays well within the coding model's output budget.
 `;
 
-export const screenshotToCodePrompt = dedent`
-Describe the attached screenshot in detail. I will send what you give me to a developer to recreate the original screenshot of a website that I sent you. Please listen very carefully. It's very important for my job that you follow these instructions:
-
-- Think step by step and describe the UI in great detail.
-- Make sure to describe where everything is in the UI so the developer can recreate it and if how elements are aligned
-- Pay close attention to background color, text color, font size, font family, padding, margin, border, etc. Match the colors and sizes exactly.
-- Make sure to mention every part of the screenshot including any headers, footers, sidebars, etc.
-- Make sure to use the exact text from the screenshot.
-`;
-
 export function getMainCodingPrompt() {
   let systemPrompt = `
   # LlamaCoder

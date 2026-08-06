@@ -156,50 +156,93 @@ export async function generateApp(
     }
   }
 
-  // Coding step — try with fallback like the streaming route
+  // Coding step — try with fallback like the streaming route.
+  // M7: wrap the actual stream consumption in try/catch so transient
+  // streaming failures fall through to the next provider (the previous code
+  // only checked for available API keys, then broke immediately).
   let firstTokenMs = 0;
   const codingStartedAt = performance.now();
 
   const codingModels = getFallbackModelSlugs(model);
-  let ai: OpenAI | undefined;
-  let resolvedModelId = "";
+  const codingErrors: string[] = [];
+
+  // Resolve the system prompt once (independent of provider).
+  const systemPrompt = resolveSystemPrompt(promptVersion, config, archMode);
+
+  let files: { path: string; content: string }[] = [];
+  let rawText = "";
   let usedModelSlug = "";
+  let resolvedModelId = "";
 
   for (const modelSlug of codingModels) {
     const client = tryGetAIClientForModel(modelSlug);
     if (!client) continue;
-    ai = client;
     resolvedModelId = getProviderModelId(modelSlug);
     usedModelSlug = modelSlug;
-    break;
+    console.error(
+      `[generation] Trying ${getProviderName(usedModelSlug)} (${resolvedModelId}) for coding`,
+    );
+
+    try {
+      const result = await tryCodingStream(client, resolvedModelId, systemPrompt, plan, temperature, maxTokens);
+      files = result.files;
+      rawText = result.rawText;
+      firstTokenMs = result.firstTokenMs;
+      break; // success
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      codingErrors.push(`${usedModelSlug}: ${msg}`);
+      console.warn(`[generation] ${usedModelSlug} failed, trying next:`, msg);
+      firstTokenMs = 0;
+      continue;
+    }
   }
-  if (!ai) {
+
+  if (!usedModelSlug) {
     throw new Error(
       `No AI provider available for model "${model}". Tried: ${codingModels.join(", ")}`,
     );
   }
-  console.error(
-    `[generation] Using ${getProviderName(usedModelSlug)} (${resolvedModelId}) for coding`,
-  );
+  if (codingErrors.length > 0 && files.length === 0) {
+    throw new Error(
+      `All coding providers failed: ${codingErrors.join(" | ")}`,
+    );
+  }
 
-  // Resolve the minimal-prompt variant (if any) for the current promptVersion.
-  // `minimal-v1` uses the caller's config as-is (no variant); `minimal-v2`,
-  // `minimal-v3`, `minimal-v4`, `minimal-v5`, `minimal-v6`, `minimal-v7`, and `minimal-v3b` force their `promptVariant`
-  // onto the spread config. Anything else falls back to the legacy
-  // `getMainCodingPrompt`.
-  const minimalVariant:
-    | "v2"
-    | "v3"
-    | "v4"
-    | "v5"
-    | "v6"
-    | "v7"
-    | "v3b"
-    | "v8"
-    | "v9"
-    | "v10"
-    | "v11"
-    | null =
+
+  // (systemPrompt already resolved above via resolveSystemPrompt and passed
+  //  into tryCodingStream which handled the per-provider stream + the
+  //  stream_options retry on actual consumption — M8.)
+  const totalGenerationMs = performance.now() - startedAt;
+
+  return {
+    files,
+    rawText,
+    plan,
+    promptVersion,
+    archMode,
+    sampling: {
+      temperature,
+      maxTokens,
+    },
+    timing: {
+      firstTokenMs,
+      totalGenerationMs,
+    },
+    tokens: {
+      input: planUsage?.prompt_tokens ?? 0,
+      output: planUsage?.completion_tokens ?? 0,
+    },
+  };
+}
+
+// Helper: resolve the coding system prompt based on promptVersion + config.
+function resolveSystemPrompt(
+  promptVersion: string,
+  config: { promptConfig?: PromptConfig },
+  archMode: string,
+): string {
+  const minimalVariant =
     promptVersion === "minimal-v2"
       ? "v2"
       : promptVersion === "minimal-v3"
@@ -224,7 +267,7 @@ export async function generateApp(
                           ? "v11"
                           : null;
 
-  let systemPrompt =
+  const isMinimal =
     promptVersion === "minimal-v1" ||
     promptVersion === "minimal-v2" ||
     promptVersion === "minimal-v3" ||
@@ -236,90 +279,100 @@ export async function generateApp(
     promptVersion === "minimal-v8" ||
     promptVersion === "minimal-v9" ||
     promptVersion === "minimal-v10" ||
-    promptVersion === "minimal-v11"
-      ? buildMinimalCodingPrompt(
-          minimalVariant
-            ? {
-                ...(config.promptConfig ?? DEFAULT_PROMPT_CONFIG),
-                promptVariant: minimalVariant,
-                // v9 is the Base UI variant — generate the allowed-stack from
-                // the Base UI deps too (not just the component list), so it
-                // matches the shipped production prompt exactly.
-                ...(promptVersion === "minimal-v9" ||
-                promptVersion === "minimal-v10" ||
-                promptVersion === "minimal-v11"
-                  ? { uiLibrary: "baseui" as const }
-                  : {}),
-              }
-            : config.promptConfig ?? DEFAULT_PROMPT_CONFIG,
-        )
-      : getMainCodingPrompt();
+    promptVersion === "minimal-v11";
+
+  let systemPrompt = isMinimal
+    ? buildMinimalCodingPrompt(
+        minimalVariant
+          ? {
+              ...(config.promptConfig ?? DEFAULT_PROMPT_CONFIG),
+              promptVariant: minimalVariant as never,
+              ...(promptVersion === "minimal-v9" ||
+              promptVersion === "minimal-v10" ||
+              promptVersion === "minimal-v11"
+                ? { uiLibrary: "baseui" as const }
+                : {}),
+            }
+          : config.promptConfig ?? DEFAULT_PROMPT_CONFIG,
+      )
+    : getMainCodingPrompt();
 
   if (archMode === "inline") {
     systemPrompt += "\n\n" + INLINE_PLAN_INSTRUCTION;
   }
+  return systemPrompt;
+}
 
-  // Try creating the stream — if stream_options is rejected, retry without
-  let stream;
-  try {
-    stream = ai.chat.completions.stream({
-      model: resolvedModelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: plan },
-      ],
-      temperature,
-      max_tokens: maxTokens,
-      stream_options: { include_usage: true },
-    });
-  } catch {
-    stream = ai.chat.completions.stream({
-      model: resolvedModelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: plan },
-      ],
-      temperature,
-      max_tokens: maxTokens,
-    });
-  }
+// Helper: try to run the coding stream for a single provider.
+// M8: the stream_options retry wraps the actual stream CONSUMPTION
+// (finalContent), not the stream() call — because the OpenAI SDK's stream()
+// returns synchronously and API rejections surface at finalContent().
+interface CodingStreamResult {
+  files: { path: string; content: string }[];
+  rawText: string;
+  firstTokenMs: number;
+}
 
-  stream.on("content", (delta) => {
+async function tryCodingStream(
+  ai: OpenAI,
+  modelId: string,
+  systemPrompt: string,
+  plan: string,
+  temperature: number,
+  maxTokens: number,
+): Promise<CodingStreamResult> {
+  const codingStartedAt = performance.now();
+  let firstTokenMs = 0;
+
+  const baseParams = {
+    model: modelId,
+    messages: [
+      { role: "system" as const, content: systemPrompt },
+      { role: "user" as const, content: plan },
+    ],
+    temperature,
+    max_tokens: maxTokens,
+  };
+
+  // Try with stream_options first.
+  let stream = ai.chat.completions.stream({
+    ...baseParams,
+    stream_options: { include_usage: true },
+  });
+
+  stream.on("content", (delta: string) => {
     if (!firstTokenMs && delta.length > 0) {
       firstTokenMs = performance.now() - codingStartedAt;
     }
   });
 
-  const rawText = (await stream.finalContent()) ?? "";
-  const totalGenerationMs = performance.now() - startedAt;
-  const usage = addUsage(
-    planUsage,
-    await stream.totalUsage().catch(() => undefined),
-  );
+  let rawText: string;
+  try {
+    rawText = (await stream.finalContent()) ?? "";
+  } catch (err) {
+    // M8: if the provider rejected stream_options, the error surfaces here.
+    // Retry once without stream_options.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/stream_options|include_usage|unknown parameter/i.test(msg)) {
+      console.warn("[generation] stream_options rejected, retrying without");
+      stream = ai.chat.completions.stream(baseParams);
+      stream.on("content", (delta: string) => {
+        if (!firstTokenMs && delta.length > 0) {
+          firstTokenMs = performance.now() - codingStartedAt;
+        }
+      });
+      rawText = (await stream.finalContent()) ?? "";
+    } else {
+      throw err;
+    }
+  }
+
   const files = extractAllCodeBlocks(rawText).map((file) => ({
     path: file.path,
     content: file.code,
   }));
 
-  return {
-    files,
-    rawText,
-    plan,
-    promptVersion,
-    archMode,
-    sampling: {
-      temperature,
-      maxTokens,
-    },
-    timing: {
-      firstTokenMs,
-      totalGenerationMs,
-    },
-    tokens: {
-      input: usage.prompt_tokens ?? 0,
-      output: usage.completion_tokens ?? 0,
-    },
-  };
+  return { files, rawText, firstTokenMs };
 }
 
 function addUsage(

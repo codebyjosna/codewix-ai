@@ -343,13 +343,38 @@ export function getFilesFromMessage(msg: {
   files?: unknown;
   content: string;
 }): Array<{ code: string; language: string; path: string; fullMatch: string }> {
-  const stored = Array.isArray(msg.files) ? (msg.files as any[]) : null;
-  if (stored && stored.length > 0) {
-    const paths = stored.map((f) => f?.path).filter(Boolean);
+  // L7: validate the shape of each stored entry instead of unsafe `any[]` cast.
+  const rawStored = Array.isArray(msg.files) ? msg.files : null;
+  const stored: Array<{
+    code: string;
+    language: string;
+    path: string;
+    fullMatch: string;
+  }> = [];
+  if (rawStored) {
+    for (const entry of rawStored) {
+      if (
+        entry &&
+        typeof entry === "object" &&
+        typeof (entry as Record<string, unknown>).path === "string" &&
+        typeof (entry as Record<string, unknown>).code === "string"
+      ) {
+        const e = entry as Record<string, unknown>;
+        stored.push({
+          path: e.path as string,
+          code: e.code as string,
+          language: typeof e.language === "string" ? e.language : "",
+          fullMatch: typeof e.fullMatch === "string" ? e.fullMatch : "",
+        });
+      }
+    }
+  }
+  if (stored.length > 0) {
+    const paths = stored.map((f) => f.path).filter(Boolean);
     const uniquePaths = new Set(paths);
     const blockEstimate = countCodeBlocks(msg.content);
-    const hasTopLevelOrphanBrace = stored.some(
-      (f) => typeof f?.code === "string" && f.code.trimStart().startsWith("}"),
+    const hasTopLevelOrphanBrace = stored.some((f) =>
+      f.code.trimStart().startsWith("}"),
     );
     if (
       !hasTopLevelOrphanBrace &&

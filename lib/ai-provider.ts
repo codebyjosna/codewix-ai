@@ -1,3 +1,4 @@
+import "server-only";
 import OpenAI from "openai";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -321,17 +322,17 @@ function isMissingApiKeyError(err: unknown): boolean {
 function isProviderQuotaOrDownError(err: unknown): boolean {
   if (err instanceof Error) {
     const m = err.message.toLowerCase();
+    // L4: tightened patterns — bare "service" and "500" were too broad and
+    // matched unrelated substrings (e.g. "service account", port numbers).
     return (
       m.includes("429") ||
       m.includes("rate limit") ||
       m.includes("quota") ||
-      m.includes("502") ||
-      m.includes("503") ||
-      m.includes("500") ||
+      /\b5\d\d\b/.test(m) || // any 5xx HTTP status as a word boundary
       m.includes("overloaded") ||
       m.includes("capacity") ||
-      m.includes("unavailable") ||
-      m.includes("service")
+      m.includes("service unavailable") ||
+      m.includes("unavailable")
     );
   }
   return false;
@@ -429,16 +430,6 @@ export function getFallbackModelSlugs(primaryModelSlug: string): string[] {
     }
   }
   return slugs;
-}
-
-/**
- * @deprecated Use getAllFallbackModels instead — returns all fallbacks,
- * not just the first one.
- */
-export function getFirstAvailableFallback(
-  primaryModelSlug: string,
-): ModelRegistryEntry | null {
-  return getAllFallbackModels(primaryModelSlug)[0] ?? null;
 }
 
 /**

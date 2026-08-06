@@ -153,6 +153,11 @@ export default function EvalHarnessClient() {
 
     return () => {
       if (watchdogRef.current) window.clearTimeout(watchdogRef.current);
+      // M14: delete the window globals so post-unmount calls don't hit
+      // stale closures that reference unmounted setState.
+      const w = window as unknown as Record<string, unknown>;
+      delete w.renderFiles;
+      delete w.getEvalHarnessResult;
     };
   }, []);
 

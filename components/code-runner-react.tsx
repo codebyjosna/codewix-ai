@@ -386,10 +386,8 @@ function WasmReactCodeRunner({
       transitionState({ phase: "running" });
     };
 
-    const timeout =
-      previewDebounceMs > 0
-        ? window.setTimeout(runBundle, previewDebounceMs)
-        : window.setTimeout(runBundle, 0);
+    // M16: simplified — both branches were identical except the delay.
+    const timeout = window.setTimeout(runBundle, Math.max(0, previewDebounceMs));
 
     const watchdog = window.setTimeout(() => {
       if (didCancel || stateRef.current.phase !== "running") return;
