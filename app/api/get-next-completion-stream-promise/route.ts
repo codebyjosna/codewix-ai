@@ -204,7 +204,12 @@ async function handleStreamRequest(req: Request) {
   }
 
   const temperature = 0.4;
-  const maxTokens = 20000;
+  // Reduced from 20000 to 10000 — the previous value caused the Lambda to
+  // exceed its 300s timeout (mistral-large-latest at ~50 tok/s → 400s for
+  // 20k tokens → Lambda killed → user sees nothing for 5+ minutes then
+  // gets an error).  10000 tokens is still plenty for a full multi-file
+  // React app, and completes in ~100s on codestral / ~200s on mistral-large.
+  const maxTokens = 10000;
   const inputMessages = messages.map((m) => ({
     role: m.role,
     content: m.content,
@@ -414,6 +419,7 @@ async function handleStreamRequest(req: Request) {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
           "Connection": "keep-alive",
+          "X-Accel-Buffering": "no",
         },
       });
     } catch (error) {

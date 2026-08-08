@@ -7,61 +7,44 @@ import { MODEL_REGISTRY, getAllModels } from "./ai-provider";
 // This is intentionally NOT an extra LLM call — it must be instant, free,
 // and side-effect-free so it can run inline in the create-project request.
 
-// codestral-latest (Mistral AI) is ALWAYS the default model, regardless of
-// whether the MISTRAL_API_KEY is available at build time.  Key checking
-// only happens at stream-request time (the fallback chain handles missing
-// keys).  The four legacy providers (Groq / Gemini / Cerebras / OpenRouter)
-// are muted — see lib/ai-provider.ts.
+// codestral-latest (Mistral AI) is ALWAYS the default model for ALL project
+// types.  It is purpose-built for code generation, runs at ~100-150 tok/s
+// (2-3x faster than mistral-large-latest), and produces high-quality React/
+// Tailwind code.  Using it exclusively also avoids the Lambda timeout issue
+// that occurs when mistral-large-latest + max_tokens=20000 pushes generation
+// past the 300s Lambda maxDuration.
+//
+// The four legacy providers (Groq / Gemini / Cerebras / OpenRouter) are
+// muted — see lib/ai-provider.ts.
 const DEFAULT_MODEL = "codestral-latest";
 
 const TYPE_MODEL: Record<string, string> = {
   website: DEFAULT_MODEL,
-  // Web apps with state + interactivity get the stronger reasoning model.
-  "web-application": "mistral-large-latest",
+  "web-application": DEFAULT_MODEL,
   "landing-page": DEFAULT_MODEL,
   portfolio: DEFAULT_MODEL,
-  "ecommerce-store": "mistral-large-latest",
+  "ecommerce-store": DEFAULT_MODEL,
   blog: DEFAULT_MODEL,
   "dashboard-admin-panel": DEFAULT_MODEL,
   "android-application": DEFAULT_MODEL,
   "ios-application": DEFAULT_MODEL,
-  "chrome-extension": "mistral-large-latest",
+  "chrome-extension": DEFAULT_MODEL,
   "api-backend-service": DEFAULT_MODEL,
   game: DEFAULT_MODEL,
 };
-
-// Signals in the description that warrant the strongest reasoning model.
-// When matched, upgrades the base model to mistral-large-latest.
-const COMPLEXITY_KEYWORDS =
-  /\b(real-?time|multiplayer|websocket|payment|stripe|authentication|machine learning|recommendation engine|3d|physics engine|animation-heavy|workflow engine|state machine|drag[- ]and[- ]drop builder)\b/i;
-
-// Models preferred for complex/realtime work (in priority order).
-// All are on the active Mistral provider — the muted providers are
-// intentionally absent.
-const COMPLEX_MODEL_PREFERENCE = [
-  "mistral-large-latest",
-  "codestral-latest",
-  "mistral-small-latest",
-];
 
 export function chooseModelForProject(
   projectTypeSlug: string,
   description: string,
 ): string {
-  // Always prefer codestral-latest (Mistral) as the default.
-  // Only override for specific project types that benefit from
-  // mistral-large-latest's stronger reasoning.
+  // Always use codestral-latest — it's the fastest, code-tuned model.
+  // The complexity check was removed because codestral handles complex
+  // code well, and mistral-large-latest is too slow for the Lambda
+  // 300s timeout (50 tok/s × 10k tokens = 200s, cutting it close).
   const available = getAllModels(true, true);
   const availableSlugs = new Set(available.map((m) => m.slug));
 
   let base = TYPE_MODEL[projectTypeSlug] ?? DEFAULT_MODEL;
-
-  // If the description signals high complexity, upgrade to a stronger
-  // reasoning model (first available from the preference list).
-  if (description && COMPLEXITY_KEYWORDS.test(description)) {
-    const complex = COMPLEX_MODEL_PREFERENCE.find((s) => s in MODEL_REGISTRY);
-    if (complex) base = complex;
-  }
 
   // If the preferred model is in the registry, use it regardless of key.
   // The fallback chain in the stream route will handle missing keys.

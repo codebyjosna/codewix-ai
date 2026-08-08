@@ -174,7 +174,7 @@ async function main() {
   eq(
     'chooseModelForProject("web-application", "with auth")',
     chooseModelForProject("web-application", "real-time multiplayer websocket game"),
-    "mistral-large-latest",
+    "codestral-latest",
   );
 
   // 5. Fallback chain: Mistral primary → no cross-provider fallback
