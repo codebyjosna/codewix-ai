@@ -17,3 +17,9 @@ frontend:
     paths:
       - node_modules/**/*
       - .next/cache/**/*
+compute:
+  version: 1
+  functions:
+    - name: default
+      timeout: 300
+      memory: 1024
