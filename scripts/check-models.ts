@@ -1,10 +1,13 @@
-// Local smoke-test: are the models on the homepage still served by Groq's
-// OpenAI-compatible inference API? Pings each model with a tiny
-// completion request and cross-checks the /v1/models catalog, so we can tell
-// apart:
+// Local smoke-test: are the models in the registry still served by the
+// active AI provider's OpenAI-compatible inference API?  Pings each model
+// with a tiny completion request and cross-checks the /v1/models catalog,
+// so we can tell apart:
 //   - WORKS          → 200, call succeeds
 //   - DEPRECATED     → removed from the catalog / explicit deprecation / 404
 //   - (transient)    → AUTH_ERROR / RATE_LIMITED / SERVER_ERROR / TIMEOUT / NETWORK
+//
+// Originally written for Groq; repointed to Mistral AI when the four
+// legacy providers (Groq / Gemini / Cerebras / OpenRouter) were muted.
 //
 // Run:
 //   node --env-file=.env scripts/check-models.ts
@@ -12,17 +15,17 @@
 
 import { MODELS, resolveModel } from "../lib/constants.ts";
 
-const API_BASE = "https://api.groq.com/openai/v1";
+const API_BASE = "https://api.mistral.ai/v1";
 const COMPLETIONS_URL = `${API_BASE}/chat/completions`;
 const MODELS_URL = `${API_BASE}/models`;
 const PER_REQUEST_TIMEOUT_MS = 45_000;
 const CONCURRENCY = 5;
 const RETRIES = 1; // retry transient failures once
 
-const API_KEY = process.env.GROQ_API_KEY;
+const API_KEY = process.env.MISTRAL_API_KEY;
 if (!API_KEY) {
   console.error(
-    "✗ GROQ_API_KEY not found. Run with: node --env-file=.env scripts/check-models.ts",
+    "✗ MISTRAL_API_KEY not found. Run with: node --env-file=.env scripts/check-models.ts",
   );
   process.exit(2);
 }
@@ -227,11 +230,8 @@ async function mapLimit<T, R>(
 
 // Models the app uses internally but that are NOT on the homepage MODELS list.
 const INTERNAL_MODELS: { label: string; value: string }[] = [
-  { label: "Kimi K2.7-Code (screenshot→code)", value: "moonshotai/Kimi-K2.7-Code" },
-  {
-    label: "Qwen3-Coder-Next (high-quality plan)",
-    value: "Qwen/Qwen3-235B-A22B-Instruct-2507-FP8",
-  },
+  { label: "Mistral Large (planning step)", value: "mistral-large-latest" },
+  { label: "Mistral Small (title step)", value: "mistral-small-latest" },
 ];
 
 interface Spec {

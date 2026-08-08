@@ -63,7 +63,7 @@ codewix.in
 │       └── auth/                                         # Authentication endpoints
 ├── lib/
 │   ├── ai-provider.ts            # MULTI-PROVIDER AI REGISTRY (single source of truth)
-│   ├── model-selection.ts        # Deterministic model routing (llama-3.3-70b default)
+│   ├── model-selection.ts        # Deterministic model routing (codestral-latest default)
 │   ├── constants.ts              # MODELS list for UI picker
 │   ├── prisma.ts                 # Prisma client singleton
 │   └── utils.ts                  # General utilities
@@ -101,12 +101,20 @@ codewix.in
 
 ### Provider Configuration
 
-| Provider | Env Key | Base URL |
-|----------|---------|----------|
-| Groq | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` |
-| Google Gemini | `GEMINI_API_KEY` | `https://generativelanguage.googleapis.com/v1beta/openai/` |
-| Cerebras | `CEREBRAS_API_KEY` | `https://api.cerebras.ai/v1` |
-| OpenRouter | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
+| Provider | Env Key | Base URL | Status |
+|----------|---------|----------|--------|
+| **Mistral AI** | `MISTRAL_API_KEY` | `https://api.mistral.ai/v1` | **ACTIVE** |
+| Groq | `GROQ_API_KEY` | `https://api.groq.com/openai/v1` | MUTED |
+| Google Gemini | `GEMINI_API_KEY` | `https://generativelanguage.googleapis.com/v1beta/openai/` | MUTED |
+| Cerebras | `CEREBRAS_API_KEY` | `https://api.cerebras.ai/v1` | MUTED |
+| OpenRouter | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` | MUTED |
+
+**Mistral AI is the only active provider.** The four legacy providers are
+kept in the registry so legacy DB rows still resolve, but they are removed
+from `PROVIDER_FALLBACK_ORDER` and every model they back is marked
+`hidden: true`. Legacy model slugs (e.g. `llama-3.3-70b`) are transparently
+remapped to active Mistral equivalents via `LEGACY_SLUG_ALIASES` so
+existing chats keep working without a DB migration.
 
 All API keys are server-side only (`process.env`). The client only sends/receives model slug strings.
 
@@ -114,31 +122,40 @@ All API keys are server-side only (`process.env`). The client only sends/receive
 
 ## Model Registry
 
+### Active (Mistral AI)
+
 | Slug | Label | Provider | Note |
 |------|-------|----------|------|
-| `llama-3.3-70b` | Llama 3.3 70B | Groq | Fastest (DEFAULT) |
-| `qwen-3.6-27b` | Qwen 3.6 27B | Groq | Quick & capable |
-| `gemini-2.5-flash` | Gemini 2.5 Flash | Gemini | Smart & fast |
-| `gemini-2.5-pro` | Gemini 2.5 Pro | Gemini | Best quality |
-| `cerebras-llama-4-scout` | Llama 4 Scout | Cerebras | Ultra-fast |
-| `cerebras-llama-4-maverick` | Llama 4 Maverick | Cerebras | Fast & capable |
-| `openrouter-deepseek-v3` | DeepSeek V3 | OpenRouter | Strong reasoning |
-| `openrouter-qwen3-coder` | Qwen 3 Coder | OpenRouter | Code specialist |
+| `codestral-latest` | Codestral | Mistral AI | ⚡ Fast & code-tuned (DEFAULT) |
+| `mistral-large-latest` | Mistral Large | Mistral AI | 💎 Best quality |
+| `mistral-small-latest` | Mistral Small | Mistral AI | 🚀 Quick & cheap |
 
-**Default model:** `llama-3.3-70b` (hardcoded, independent of API key availability).
+**Default model:** `codestral-latest` (hardcoded, independent of API key availability).
+
+### Legacy (muted, hidden from UI)
+
+`llama-3.3-70b`, `qwen-3.6-27b`, `llama-3.1-8b`, `gpt-oss-120b`, `gpt-oss-20b`,
+`gemini-2.5-flash`, `gemini-2.5-pro`, `cerebras-llama-4-scout`,
+`cerebras-llama-4-maverick`, `openrouter-deepseek-v3`, `openrouter-qwen3-coder`.
+
+These slugs still resolve (via `LEGACY_SLUG_ALIASES`) to active Mistral
+equivalents so existing chats continue to work.
 
 ---
 
 ## Fallback Chain
 
 ```
-Groq (llama-3.3-70b) → Gemini (gemini-2.5-flash) → Cerebras (cerebras-llama-4-scout) → OpenRouter (openrouter-deepseek-v3)
+Mistral AI (codestral-latest)   [single-provider — no fallback]
 ```
 
 1. User's requested model is tried first.
-2. On failure, ALL remaining providers are tried in order.
-3. Each provider is attempted exactly once.
-4. If all fail, a comprehensive error listing all failures is returned.
+2. On failure, ALL remaining ACTIVE providers are tried in order.
+   Currently there is only one active provider, so the chain is a single hop.
+3. If the request fails (or `MISTRAL_API_KEY` is missing), a clear error is returned.
+
+Re-enabling a muted provider is a one-line change in `lib/ai-provider.ts`:
+set `active: true` on its `PROVIDERS` entry and add its key to `PROVIDER_FALLBACK_ORDER`.
 
 ### Error Categorization
 
@@ -162,7 +179,7 @@ Creates project + chat record. Returns `{ projectId, chatId, lastMessageId, mode
 Switches model for a chat. Validates slug against registry.
 
 ### `POST /api/generate-chat-title`
-Generates chat title using `llama-3.1-8b`.
+Generates chat title using `mistral-small-latest` (cheap, fast — ideal for the 24-token title call).
 
 ---
 
@@ -188,10 +205,11 @@ Generates chat title using `llama-3.1-8b`.
 |----------|----------|---------|
 | `DATABASE_URL` | Yes | Prisma |
 | `AUTH_SECRET` | Yes | jose JWT |
-| `GROQ_API_KEY` | Yes | ai-provider.ts |
-| `GEMINI_API_KEY` | Recommended | ai-provider.ts |
-| `CEREBRAS_API_KEY` | Recommended | ai-provider.ts |
-| `OPENROUTER_API_KEY` | Recommended | ai-provider.ts |
+| `MISTRAL_API_KEY` | Yes (ACTIVE) | ai-provider.ts |
+| `GROQ_API_KEY` | Optional (MUTED) | ai-provider.ts |
+| `GEMINI_API_KEY` | Optional (MUTED) | ai-provider.ts |
+| `CEREBRAS_API_KEY` | Optional (MUTED) | ai-provider.ts |
+| `OPENROUTER_API_KEY` | Optional (MUTED) | ai-provider.ts |
 | `RESEND_API_KEY` | Yes | Email OTP |
 | `RESEND_FROM_EMAIL` | Yes | Email OTP |
 | `BRAINTRUST_API_KEY` | Optional | braintrust.ts |

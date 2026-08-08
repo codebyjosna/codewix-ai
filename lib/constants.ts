@@ -1,4 +1,4 @@
-import { getAllModels, resolveModelSlug, getProviderModelId } from "./ai-provider";
+import { getAllModels, getProviderModelId } from "./ai-provider";
 
 // ──────────────────────────────────────────────────────────────────────
 // Backward-compatible constants
@@ -13,11 +13,14 @@ export function resolveModel(model: string): string {
   return getProviderModelId(model);
 }
 
-/** Model used for the "software architect" plan step in create-chat. */
-export const PLANNING_MODEL = "llama-3.3-70b";
+/** Model used for the "software architect" plan step in create-chat.
+ *  mistral-large-latest: strongest general-purpose reasoning on the
+ *  active Mistral provider — best fit for the planning step. */
+export const PLANNING_MODEL = "mistral-large-latest";
 
-/** Model used for lightweight chat title generation. */
-export const TITLE_MODEL = "llama-3.1-8b";
+/** Model used for lightweight chat title generation.
+ *  mistral-small-latest: cheap & fast — ideal for the 24-token title call. */
+export const TITLE_MODEL = "mistral-small-latest";
 
 export type ModelOption = {
   label: string;
@@ -29,7 +32,7 @@ export type ModelOption = {
 /**
  * Flat list consumed by the UI picker and the /api/update-chat-model
  * validation endpoint.  Derived from the registry — the `value` is the
- * model *slug* (e.g. "llama-3.3-70b"), NOT the provider-level model ID.
+ * model *slug* (e.g. "codestral-latest"), NOT the provider-level model ID.
  */
 export const MODELS: ModelOption[] = getAllModels(true, false).map((m) => ({
   label: m.label,

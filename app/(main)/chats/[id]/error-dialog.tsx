@@ -50,6 +50,7 @@ function categorizeError(message: string): ErrorCategory {
     m.includes("google") ||
     m.includes("cerebras") ||
     m.includes("openrouter") ||
+    m.includes("mistral") ||
     m.includes("provider")
   ) {
     return "api";

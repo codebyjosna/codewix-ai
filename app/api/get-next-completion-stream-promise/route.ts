@@ -6,8 +6,6 @@ import {
   buildProviderErrorMessage,
   buildAllProvidersFailedMessage,
   getAllFallbackModels,
-  AIProviderError,
-  PROVIDERS,
   resolveModelSlug,
 } from "@/lib/ai-provider";
 import { getPrisma } from "@/lib/prisma";

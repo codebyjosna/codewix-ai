@@ -26,7 +26,7 @@ import {
  */
 export function getAIClient(modelSlug?: string): OpenAI {
   if (!modelSlug) {
-    return getAIClientForModel("llama-3.3-70b");
+    return getAIClientForModel("codestral-latest");
   }
   return getAIClientForModel(modelSlug);
 }

@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
     AUTH_SECRET: process.env.AUTH_SECRET,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    // ── ACTIVE AI PROVIDER ─────────────────────────────────────────
+    // Mistral AI is the only active provider.  The four legacy keys
+    // below are kept for forward-compatibility (re-enabling a muted
+    // provider is a one-line change in lib/ai-provider.ts).
+    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
     GROQ_API_KEY: process.env.GROQ_API_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     CEREBRAS_API_KEY: process.env.CEREBRAS_API_KEY,

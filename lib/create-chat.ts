@@ -25,7 +25,7 @@ async function describeScreenshot(_screenshotUrl: string, span?: Span) {
   span?.log({
     metadata: {
       screenshotSkipped: true,
-      reason: "groq-no-vision",
+      reason: "vision-description-not-implemented",
     },
   });
   return undefined;

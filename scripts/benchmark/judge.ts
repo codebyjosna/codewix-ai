@@ -132,7 +132,10 @@ function parseJsonObject(content: string): any {
 }
 
 function createGroqJudgeRequest(): JudgeRequest {
-  const ai = getAIClientForModel("llama-3.3-70b");
+  // Judge needs strong general reasoning — mistral-large-latest is the
+  // strongest active model on the Mistral provider.  (Function name kept
+  // for diff readability; the underlying client is now Mistral, not Groq.)
+  const ai = getAIClientForModel("mistral-large-latest");
 
   return {
     create: async (options) => {
