@@ -625,4 +625,37 @@ function getProviderApiKey(providerKey: string): string | undefined {
     default: return undefined;
   }
 }
+
+/**
+ * Get the raw connection details (API key + base URL + model ID) for a
+ * given model slug, for use with fetch()-based streaming.  Returns
+ * undefined if the provider is missing, muted, or has no API key.
+ *
+ * This bypasses the OpenAI SDK entirely — callers use fetch() to POST
+ * to `${baseURL}/chat/completions` with `Authorization: Bearer ${apiKey}`
+ * and `stream: true` in the body, then pipe the SSE response body
+ * directly to the client.  This is the ONLY streaming approach that
+ * works reliably on AWS Amplify SSR (Lambda).
+ */
+export function getProviderConnectionForModel(slug: string): {
+  apiKey: string;
+  baseURL: string;
+  modelId: string;
+  providerName: string;
+  providerKey: string;
+} | undefined {
+  const entry = resolveModelSlug(slug);
+  const provider = PROVIDERS[entry.provider];
+  if (!provider) return undefined;
+  const apiKey = getProviderApiKey(entry.provider);
+  if (!apiKey) return undefined;
+  return {
+    apiKey,
+    baseURL: provider.baseURL,
+    modelId: entry.modelId,
+    providerName: provider.name,
+    providerKey: entry.provider,
+  };
+}
+
 export { PROVIDERS, PROVIDER_FALLBACK_ORDER, buildProviderErrorMessage };
