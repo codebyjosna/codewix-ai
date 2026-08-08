@@ -1,4 +1,5 @@
 import { z } from "zod";
+import OpenAI from "openai";
 import {
   getAIClientForModel,
   getProviderModelId,
@@ -269,25 +270,31 @@ async function handleStreamRequest(req: Request) {
     try {
       const { ai } = tryCreateStream(modelSlug);
 
-      // M6: tie the upstream LLM stream to the client request signal so that
-      // when the client disconnects (navigate away, tab close), the provider
-      // stream is aborted and we stop being billed for further tokens.
+      // ── Non-streaming approach for Amplify SSR compatibility ──────
+      // AWS Amplify SSR (Lambda) doesn't properly support returning a
+      // ReadableStream from an OpenAI SDK .stream() call — the Lambda
+      // runtime can't pipe the SDK's internal event-emitter-based stream
+      // to the HTTP response, resulting in a bare HTTP 500 with no body.
+      //
+      // Instead, we use the non-streaming create() call (which works
+      // reliably on Amplify — the title-generation endpoint uses the same
+      // pattern), then convert the complete response into SSE-formatted
+      // chunks that the client's ChatCompletionStream.fromReadableStream()
+      // can parse just like a real stream.
       const abortController = new AbortController();
       if (req.signal) {
         if (req.signal.aborted) abortController.abort();
         else req.signal.addEventListener("abort", () => abortController.abort(), { once: true });
       }
 
-      let stream: ReturnType<typeof ai.chat.completions.stream>;
+      let completion: OpenAI.Chat.Completions.ChatCompletion;
       try {
-        stream = ai.chat.completions.stream({
+        completion = await ai.chat.completions.create({
           model: resolvedModel,
           messages: inputMessages,
           temperature,
           max_tokens: maxTokens,
-          stream_options: { include_usage: true },
-          signal: abortController.signal,
-        });
+        }, { signal: abortController.signal });
       } catch (error) {
         const errorMsg = buildProviderErrorMessage(entry.provider, modelSlug, error);
         allErrors.push({
@@ -309,51 +316,88 @@ async function handleStreamRequest(req: Request) {
         continue; // Try next provider
       }
 
-      stream.on("content", (delta) => {
-        if (!firstTokenMs && delta.length > 0) {
-          firstTokenMs = performance.now() - startedAt;
-          span?.log({ metrics: { first_token_ms: firstTokenMs } });
-        }
+      const fullText = completion.choices[0]?.message?.content ?? "";
+      const finishReason = completion.choices[0]?.finish_reason ?? "stop";
+      firstTokenMs = performance.now() - startedAt;
+
+      // Log to Braintrust
+      span?.log({
+        output: fullText,
+        metadata: {
+          completed: finishReason !== "length",
+          finish_reason: finishReason,
+          truncated: finishReason === "length",
+          outputChars: fullText.length,
+        },
+        metrics: {
+          first_token_ms: firstTokenMs,
+          total_generation_ms: performance.now() - startedAt,
+          prompt_tokens: completion.usage?.prompt_tokens ?? 0,
+          completion_tokens: completion.usage?.completion_tokens ?? 0,
+          tokens: completion.usage?.total_tokens ?? 0,
+        },
+      });
+      span?.end();
+      await flushBraintrustSpan(span);
+
+      // Build a ReadableStream that emits the response as OpenAI-compatible
+      // SSE chunks.  The client uses ChatCompletionStream.fromReadableStream()
+      // which parses `data: {json}\n\n` lines — this is the exact format
+      // the OpenAI API uses for streaming, so the client sees no difference.
+      const completionId = completion.id || `chatcmpl-${Date.now()}`;
+      const model_name = completion.model || resolvedModel;
+
+      const encoder = new TextEncoder();
+      const readable = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // Split the full text into word-level chunks so the client's
+          // progressive rendering (code highlighting, preview debouncing)
+          // still works naturally.
+          const tokens = fullText.match(/\S+\s*/g) || [fullText];
+          for (const token of tokens) {
+            const chunk = {
+              id: completionId,
+              object: "chat.completion.chunk",
+              created: Math.floor(Date.now() / 1000),
+              model: model_name,
+              choices: [{ index: 0, delta: { content: token }, finish_reason: null }],
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+          }
+          // Final chunk with finish_reason
+          const finalChunk = {
+            id: completionId,
+            object: "chat.completion.chunk",
+            created: Math.floor(Date.now() / 1000),
+            model: model_name,
+            choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`));
+          // Usage chunk (if available) — stream_options.include_usage equivalent
+          if (completion.usage) {
+            const usageChunk = {
+              id: completionId,
+              object: "chat.completion.chunk",
+              created: Math.floor(Date.now() / 1000),
+              model: model_name,
+              choices: [],
+              usage: completion.usage,
+            };
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(usageChunk)}\n\n`));
+          }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
       });
 
-      stream
-        .finalContent()
-        .then(async (finalText) => {
-          const usage = await stream.totalUsage().catch(() => undefined);
-          const completion = await stream.finalChatCompletion().catch(() => undefined);
-          const finishReason = completion?.choices?.[0]?.finish_reason ?? null;
-          span?.log({
-            output: finalText,
-            metadata: {
-              completed: finishReason !== "length",
-              finish_reason: finishReason,
-              truncated: finishReason === "length",
-              outputChars: finalText?.length ?? 0,
-            },
-            metrics: {
-              first_token_ms: firstTokenMs,
-              total_generation_ms: performance.now() - startedAt,
-              prompt_tokens: usage?.prompt_tokens ?? 0,
-              completion_tokens: usage?.completion_tokens ?? 0,
-              tokens: usage?.total_tokens ?? 0,
-            },
-          });
-          span?.end();
-          await flushBraintrustSpan(span);
-        })
-        .catch(async (error) => {
-          span?.log({
-            error: serializeBraintrustError(error),
-            metrics: {
-              first_token_ms: firstTokenMs,
-              total_generation_ms: performance.now() - startedAt,
-            },
-          });
-          span?.end();
-          await flushBraintrustSpan(span);
-        });
-
-      return new Response(stream.toReadableStream());
+      return new Response(readable, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      });
     } catch (error) {
       const errorMsg = buildProviderErrorMessage(entry.provider, modelSlug, error);
       allErrors.push({
