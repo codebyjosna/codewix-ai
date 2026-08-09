@@ -27,7 +27,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
+// ChatCompletionStream from the OpenAI SDK was replaced with a manual SSE
+// parser below — the SDK's fromReadableStream() silently failed to emit
+// finalContent on AWS Amplify (Lambda buffers the entire response into one
+// chunk, and the SDK's event-emitter doesn't fire end events reliably).
 import ChatBox from "./chat-box";
 import ChatLog from "./chat-log";
 import CodeViewer from "./code-viewer";
@@ -312,97 +315,129 @@ export default function PageClient({ chat }: { chat: Chat }) {
       let didPushToPreview = false;
 
       try {
-        ChatCompletionStream.fromReadableStream(stream)
-          .on("content", (delta, content) => {
-            // Mark "we saw activity" so the idle watchdog resets.
-            lastContentAtRef.current = Date.now();
-            setStreamText(() => sanitizeAssistantOutput(content));
+        // ── Manual SSE parser (replaces ChatCompletionStream.fromReadableStream) ──
+        // The OpenAI SDK's fromReadableStream() was silently failing to emit
+        // finalContent on AWS Amplify (likely due to how Lambda buffers the
+        // response into a single chunk).  This manual parser reads the SSE
+        // stream directly, accumulates content deltas, and calls the same
+        // handlers (content → finalContent) that the SDK would have called.
+        const reader = stream.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = "";
+        let streamBuffer = "";
 
-            if (
-              !didPushToCode &&
-              parseReplySegments(content).some((seg) => seg.type === "file")
-            ) {
-              didPushToCode = true;
-              setIsShowingCodeViewer(true);
-              setActiveTab("code");
-            }
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-            if (
-              !didPushToPreview &&
-              parseReplySegments(content).some(
-                (seg) => seg.type === "file" && !seg.isPartial,
-              )
-            ) {
-              didPushToPreview = true;
-              setIsShowingCodeViewer(true);
+          // Mark activity for the idle watchdog
+          lastContentAtRef.current = Date.now();
+
+          streamBuffer += decoder.decode(value, { stream: true });
+
+          // Process complete SSE events (separated by \n\n)
+          const events = streamBuffer.split("\n\n");
+          streamBuffer = events.pop() ?? ""; // last incomplete event stays in buffer
+
+          for (const event of events) {
+            const lines = event.split("\n");
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const payload = line.slice(6);
+              if (payload === "[DONE]") {
+                continue;
+              }
+              try {
+                const ev = JSON.parse(payload);
+                const delta = ev.choices?.[0]?.delta;
+                if (delta?.content) {
+                  fullContent += delta.content;
+                  // Update the UI with accumulated content (sanitized)
+                  setStreamText(() => sanitizeAssistantOutput(fullContent));
+
+                  if (
+                    !didPushToCode &&
+                    parseReplySegments(fullContent).some(
+                      (seg) => seg.type === "file",
+                    )
+                  ) {
+                    didPushToCode = true;
+                    setIsShowingCodeViewer(true);
+                    setActiveTab("code");
+                  }
+
+                  if (
+                    !didPushToPreview &&
+                    parseReplySegments(fullContent).some(
+                      (seg) => seg.type === "file" && !seg.isPartial,
+                    )
+                  ) {
+                    didPushToPreview = true;
+                    setIsShowingCodeViewer(true);
+                  }
+                }
+              } catch {
+                // JSON parse error on a single line — skip, don't crash
+              }
             }
-          })
-          .on("error", (err) => {
-            cancelWatchdog();
-            setStreamError(
-              err instanceof Error
-                ? `Generation failed: ${err.message}`
-                : "Generation failed unexpectedly.",
+          }
+        }
+
+        // Stream complete — emit finalContent
+        cancelWatchdog();
+        const finalText = sanitizeAssistantOutput(fullContent);
+        try {
+          await startTransition(async () => {
+            // Get all previous assistant messages with files
+            const previousAssistantMessages = chat.messages.filter(
+              (m) =>
+                m.role === "assistant" &&
+                extractAllCodeBlocks(m.content).length > 0,
             );
-            resetStreamState();
-          })
-          .on("finalContent", async (finalText) => {
-            cancelWatchdog();
-            finalText = sanitizeAssistantOutput(finalText);
-            try {
-              await startTransition(async () => {
-                // Get all previous assistant messages with files
-                const previousAssistantMessages = chat.messages.filter(
-                  (m) =>
-                    m.role === "assistant" &&
-                    extractAllCodeBlocks(m.content).length > 0,
-                );
 
-                // Extract all files from previous messages
-                const previousFiles = previousAssistantMessages.flatMap(
-                  (msg) => extractAllCodeBlocks(msg.content),
-                );
+            // Extract all files from previous messages
+            const previousFiles = previousAssistantMessages.flatMap(
+              (msg) => extractAllCodeBlocks(msg.content),
+            );
 
-                // Extract files from current AI response
-                const currentFiles = extractAllCodeBlocks(finalText);
+            // Extract files from current AI response
+            const currentFiles = extractAllCodeBlocks(finalText);
 
-                // Merge files (current overrides previous for same paths)
-                const fileMap = new Map();
-                previousFiles.forEach((file) => fileMap.set(file.path, file));
-                currentFiles.forEach((file) => fileMap.set(file.path, file));
-                const allFiles = Array.from(fileMap.values());
+            // Merge files (current overrides previous for same paths)
+            const fileMap = new Map();
+            previousFiles.forEach((file) => fileMap.set(file.path, file));
+            currentFiles.forEach((file) => fileMap.set(file.path, file));
+            const allFiles = Array.from(fileMap.values());
 
-                const message = await createMessage(
-                  chat.id,
-                  finalText, // Store original AI response content (only changed files)
-                  "assistant",
-                  allFiles, // Store cumulative files
-                );
+            const message = await createMessage(
+              chat.id,
+              finalText,
+              "assistant",
+              allFiles,
+            );
 
-                startTransition(() => {
-                  isHandlingStreamRef.current = false;
-                  setStreamText("");
-                  setStreamPromise(undefined);
-                  setStreamElapsedMs(0);
-                  setStreamError(null);
-                  abortControllerRef.current = null;
-                  activeStreamRef.current = null;
-                  setActiveMessage(message);
-                  // When streaming finishes, switch to preview mode and keep the viewer open
-                  setIsShowingCodeViewer(true);
-                  setActiveTab("preview");
-                  router.refresh();
-                });
-              });
-            } catch (err) {
-              setStreamError(
-                err instanceof Error
-                  ? `Failed to save response: ${err.message}`
-                  : "Failed to save response.",
-              );
-              resetStreamState();
-            }
+            startTransition(() => {
+              isHandlingStreamRef.current = false;
+              setStreamText("");
+              setStreamPromise(undefined);
+              setStreamElapsedMs(0);
+              setStreamError(null);
+              abortControllerRef.current = null;
+              activeStreamRef.current = null;
+              setActiveMessage(message);
+              setIsShowingCodeViewer(true);
+              setActiveTab("preview");
+              router.refresh();
+            });
           });
+        } catch (err) {
+          setStreamError(
+            err instanceof Error
+              ? `Failed to save response: ${err.message}`
+              : "Failed to save response.",
+          );
+          resetStreamState();
+        }
       } catch (err) {
         cancelWatchdog();
         setStreamError(
